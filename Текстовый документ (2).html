@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>График подготовки к ЕГЭ</title>
+    <style>
+        /* --- Глобальные переменные и стили --- */
+        :root {
+            --primary-color: #007bff;
+            --secondary-color: #6c757d;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-color: #333;
+            --border-color: #dee2e6;
+            --success-color: #28a745;
+            --light-grey: #f0f0f0;
+            --dark-grey: #555;
+            --hover-bg: #e9ecef;
+            --font-main: 'Segoe UI', Arial, sans-serif;
+            --box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-main);
+            margin: 0;
+            padding: 15px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        h1, h2 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 1em;
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        h2 {
+            margin-top: 30px;
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 5px;
+        }
+
+        /* --- Стили для расписания (таблицы) --- */
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background-color: var(--card-bg);
+            box-shadow: var(--box-shadow);
+            overflow: hidden; /* Для скругления углов */
+            border-radius: 8px;
+        }
+
+        .schedule-table th, .schedule-table td {
+            border: 1px solid var(--border-color);
+            padding: 10px 12px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .schedule-table th {
+            background-color: var(--light-grey);
+            font-weight: 600;
+            color: var(--dark-grey);
+        }
+
+        .schedule-table tr:nth-child(even) {
+            background-color: #fdfdfd;
+        }
+
+        .schedule-table tr:hover {
+            background-color: var(--hover-bg);
+        }
+
+        /* --- Стили для задач внутри таблицы --- */
+        .tasks-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .tasks-list li {
+            display: flex;
+            align-items: flex-start; /* Выравнивание по верху для длинных текстов */
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px dashed var(--border-color); /* Разделитель между задачами */
+        }
+         .tasks-list li:last-child {
+            margin-bottom: 0;
+            border-bottom: none;
+        }
+
+        .tasks-list input[type="checkbox"] {
+            margin-right: 10px;
+            flex-shrink: 0; /* Чтобы чекбокс не сжимался */
+            margin-top: 3px; /* Небольшой отступ сверху для выравнивания с текстом */
+            cursor: pointer;
+            /* Увеличим размер для удобства на мобильных */
+            width: 18px;
+            height: 18px;
+        }
+
+        .tasks-list label {
+            cursor: pointer;
+            flex-grow: 1;
+        }
+
+        .tasks-list li.completed label {
+            text-decoration: line-through;
+            color: var(--secondary-color);
+            opacity: 0.7;
+        }
+
+        /* --- Метки типов дня --- */
+        .day-type {
+            font-weight: bold;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            display: inline-block; /* Чтобы паддинг работал */
+        }
+        .day-type-weekend { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; } /* Зеленый */
+        .day-type-weekday { background-color: #cce5ff; color: #004085; border: 1px solid #b8daff; } /* Синий */
+        .day-type-training { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; } /* Желтый */
+        .day-type-exam { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; } /* Красный */
+
+
+        /* --- Адаптивность для таблиц --- */
+        @media (max-width: 768px) {
+            .schedule-table thead {
+                display: none; /* Скрываем заголовки таблицы */
+            }
+
+            .schedule-table, .schedule-table tbody, .schedule-table tr, .schedule-table td {
+                display: block;
+                width: 100%;
+            }
+
+            .schedule-table tr {
+                margin-bottom: 15px;
+                border: 1px solid var(--border-color);
+                border-radius: 5px;
+                overflow: hidden; /* Чтобы внутренние границы не вылезали */
+                box-shadow: var(--box-shadow);
+            }
+
+            .schedule-table td {
+                border: none;
+                border-bottom: 1px solid var(--border-color);
+                position: relative;
+                padding-left: 50%; /* Оставляем место для псевдо-заголовка */
+                text-align: right; /* Выравниваем контент справа */
+                min-height: 30px; /* Минимальная высота строки */
+                display: flex; /* Flex для выравнивания заголовка и контента */
+                align-items: center;
+                justify-content: flex-end; /* Контент к правому краю */
+            }
+
+            .schedule-table td:last-child {
+                border-bottom: 0;
+            }
+
+            .schedule-table td::before {
+                content: attr(data-label); /* Используем data-label для заголовка */
+                position: absolute;
+                left: 10px;
+                width: calc(50% - 20px); /* Ширина минус паддинги */
+                padding-right: 10px;
+                font-weight: bold;
+                text-align: left; /* Заголовок слева */
+                color: var(--dark-grey);
+            }
+
+            /* Для ячеек с задачами выравнивание контента по левому краю */
+             .schedule-table td.tasks-cell {
+                text-align: left;
+                justify-content: flex-start; /* Контент (список) к левому краю */
+                padding-left: 10px; /* Убираем отступ слева, т.к. заголовок сверху */
+                padding-top: 35px; /* Добавляем отступ сверху для заголовка */
+             }
+             .schedule-table td.tasks-cell::before {
+                 top: 10px; /* Позиционируем заголовок сверху */
+                 width: auto; /* Ширина по контенту */
+                 position: absolute;
+                 left: 10px;
+             }
+            .tasks-list {
+                 width: 100%; /* Список занимает всю ширину ячейки */
+             }
+        }
+
+        /* --- Стили для кнопки и окна ToDo List --- */
+        .todo-toggle-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 24px;
+            line-height: 60px; /* Центрируем иконку/текст */
+            text-align: center;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+
+        .todo-toggle-button:hover {
+            background-color: #0056b3;
+            transform: scale(1.1);
+        }
+
+        .todo-chat-container {
+            position: fixed;
+            bottom: 90px; /* Над кнопкой */
+            right: 20px;
+            width: 320px;
+            max-height: 450px;
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            display: none; /* Скрыто по умолчанию */
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 999;
+            border: 1px solid var(--border-color);
+        }
+
+        .todo-chat-container.visible {
+            display: flex;
+        }
+
+        .todo-header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 10px 15px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .todo-list {
+            list-style: none;
+            margin: 0;
+            padding: 10px 15px;
+            overflow-y: auto;
+            flex-grow: 1; /* Занимает доступное пространство */
+        }
+
+        .todo-list li {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--light-grey);
+            word-break: break-word; /* Перенос длинных слов */
+        }
+        .todo-list li:last-child {
+            border-bottom: none;
+        }
+
+        .todo-list input[type="checkbox"] {
+            margin-right: 10px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .todo-list label {
+            flex-grow: 1;
+            cursor: pointer;
+            font-size: 0.95em;
+        }
+
+        .todo-list li.completed label {
+            text-decoration: line-through;
+            color: var(--secondary-color);
+        }
+
+        .todo-delete-button {
+            background: none;
+            border: none;
+            color: #dc3545; /* Красный */
+            cursor: pointer;
+            font-size: 1.1em;
+            margin-left: 10px;
+            padding: 0 5px;
+            flex-shrink: 0;
+        }
+         .todo-delete-button:hover {
+             color: #a71d2a;
+         }
+
+        .todo-input-area {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--light-grey);
+        }
+
+        .todo-input-area input[type="text"] {
+            flex-grow: 1;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px 0 0 5px;
+            outline: none;
+        }
+         .todo-input-area input[type="text"]:focus {
+             border-color: var(--primary-color);
+             box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+         }
+
+        .todo-input-area button {
+            padding: 8px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: 1px solid var(--primary-color);
+            border-radius: 0 5px 5px 0;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            white-space: nowrap; /* Чтобы текст не переносился */
+        }
+
+        .todo-input-area button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Анимация появления окна чата (опционально) */
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .todo-chat-container.visible {
+            animation: slideUp 0.3s ease-out;
+        }
+
+    </style>
+</head>
+<body>
+
+<h1>Расписание подготовки к ЕГЭ</h1>
+
+<!-- Структура расписания -->
+<div class="schedule-container">
+
+    <h2>Неделя 1: 27 апреля – 3 мая</h2>
+    <table class="schedule-table" id="week1-table">
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Тип дня</th>
+                <th>Утро</th>
+                <th>Днём</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td data-label="Дата">27.04 Вс</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekend">Выходной</span></td>
+                <td data-label="Утро">—</td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w1d1t1" data-taskid="w1d1t1"><label for="w1d1t1">[ФУЛЛ пробник мат] – 4 ч</label></li>
+                        <li><input type="checkbox" id="w1d1t2" data-taskid="w1d1t2"><label for="w1d1t2">[ФУЛЛ пробник рус] – 3.5 ч</label></li>
+                        <li><input type="checkbox" id="w1d1t3" data-taskid="w1d1t3"><label for="w1d1t3">Инфа-нарезка – 2.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td data-label="Дата">28.04 Пн</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                        <li><input type="checkbox" id="w1d2t1" data-taskid="w1d2t1"><label for="w1d2t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w1d2t2" data-taskid="w1d2t2"><label for="w1d2t2">[МАТ пробник 1] – 1.5 ч</label></li>
+                        <li><input type="checkbox" id="w1d2t3" data-taskid="w1d2t3"><label for="w1d2t3">[ИНФ пробник 1] – 1.5 ч</label></li>
+                        <li><input type="checkbox" id="w1d2t4" data-taskid="w1d2t4"><label for="w1d2t4">Матем. нарезка – 2.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">29.04 Вт</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w1d3t1" data-taskid="w1d3t1"><label for="w1d3t1">[РУС 1ч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w1d3t2" data-taskid="w1d3t2"><label for="w1d3t2">[МАТ пробник 2] – 2 ч</label></li>
+                        <li><input type="checkbox" id="w1d3t3" data-taskid="w1d3t3"><label for="w1d3t3">[ИНФ пробник 2] – 2 ч</label></li>
+                        <li><input type="checkbox" id="w1d3t4" data-taskid="w1d3t4"><label for="w1d3t4">Матем. нарезка – 1.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">30.04 Ср</td>
+                <td data-label="Тип дня"><span class="day-type day-type-training">Тренировка</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w1d4t1" data-taskid="w1d4t1"><label for="w1d4t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w1d4t2" data-taskid="w1d4t2"><label for="w1d4t2">Матем. нарезка – 2.5 ч</label></li>
+                        <li><input type="checkbox" id="w1d4t3" data-taskid="w1d4t3"><label for="w1d4t3">Инфа hardprog – 1.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">01.05 Чт</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w1d5t1" data-taskid="w1d5t1"><label for="w1d5t1">[РУС 1ч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w1d5t2" data-taskid="w1d5t2"><label for="w1d5t2">Инфа hardprog – 5.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td data-label="Дата">02.05 Пт</td>
+                <td data-label="Тип дня"><span class="day-type day-type-training">Тренировка</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w1d6t1" data-taskid="w1d6t1"><label for="w1d6t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w1d6t2" data-taskid="w1d6t2"><label for="w1d6t2">Матем. нарезка – 2.5 ч</label></li>
+                        <li><input type="checkbox" id="w1d6t3" data-taskid="w1d6t3"><label for="w1d6t3">Инфа hardprog – 1.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">03.05 Сб</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekend">Выходной</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                        <li><input type="checkbox" id="w1d7t1" data-taskid="w1d7t1"><label for="w1d7t1">[РУС 1ч пробник] – 1.5 ч</label></li>
+                     </ul>
+                </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w1d7t2" data-taskid="w1d7t2"><label for="w1d7t2">[ФУЛЛ пробник инф] – 4 ч</label></li>
+                        <li><input type="checkbox" id="w1d7t3" data-taskid="w1d7t3"><label for="w1d7t3">Инфа-нарезка – 6.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>Неделя 2: 4 мая – 10 мая</h2>
+     <table class="schedule-table" id="week2-table">
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Тип дня</th>
+                <th>Утро</th>
+                <th>Днём</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td data-label="Дата">04.05 Вс</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekend">Выходной</span></td>
+                <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w2d1t1" data-taskid="w2d1t1"><label for="w2d1t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w2d1t2" data-taskid="w2d1t2"><label for="w2d1t2">[ФУЛЛ пробник мат] – 4 ч</label></li>
+                        <li><input type="checkbox" id="w2d1t3" data-taskid="w2d1t3"><label for="w2d1t3">Матем. нарезка – 6 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">05.05 Пн</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w2d2t1" data-taskid="w2d2t1"><label for="w2d2t1">[РУС 1ч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w2d2t2" data-taskid="w2d2t2"><label for="w2d2t2">[МАТ пробник 1] – 1.5 ч</label></li>
+                        <li><input type="checkbox" id="w2d2t3" data-taskid="w2d2t3"><label for="w2d2t3">[ИНФ пробник 1] – 1.5 ч</label></li>
+                        <li><input type="checkbox" id="w2d2t4" data-taskid="w2d2t4"><label for="w2d2t4">Матем. нарезка – 2.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td data-label="Дата">06.05 Вт</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w2d3t1" data-taskid="w2d3t1"><label for="w2d3t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w2d3t2" data-taskid="w2d3t2"><label for="w2d3t2">[МАТ пробник 2] – 2 ч</label></li>
+                        <li><input type="checkbox" id="w2d3t3" data-taskid="w2d3t3"><label for="w2d3t3">[ИНФ пробник 2] – 2 ч</label></li>
+                        <li><input type="checkbox" id="w2d3t4" data-taskid="w2d3t4"><label for="w2d3t4">Матем. нарезка – 1.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">07.05 Ср</td>
+                <td data-label="Тип дня"><span class="day-type day-type-training">Тренировка</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w2d4t1" data-taskid="w2d4t1"><label for="w2d4t1">[РУС 1ч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                         <li><input type="checkbox" id="w2d4t2" data-taskid="w2d4t2"><label for="w2d4t2">Инфа hardprog – 3 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td data-label="Дата">08.05 Чт</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w2d5t1" data-taskid="w2d5t1"><label for="w2d5t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w2d5t2" data-taskid="w2d5t2"><label for="w2d5t2">Инфа hardprog – 6 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td data-label="Дата">09.05 Пт</td>
+                <td data-label="Тип дня"><span class="day-type day-type-training">Тренировка</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w2d6t1" data-taskid="w2d6t1"><label for="w2d6t1">[РУС 1ч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w2d6t2" data-taskid="w2d6t2"><label for="w2d6t2">Матем. нарезка – 2 ч</label></li>
+                        <li><input type="checkbox" id="w2d6t3" data-taskid="w2d6t3"><label for="w2d6t3">Инфа hardprog – 1 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td data-label="Дата">10.05 Сб</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekend">Выходной</span></td>
+                <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w2d7t1" data-taskid="w2d7t1"><label for="w2d7t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w2d7t2" data-taskid="w2d7t2"><label for="w2d7t2">[ФУЛЛ пробник инф] – 4 ч</label></li>
+                        <li><input type="checkbox" id="w2d7t3" data-taskid="w2d7t3"><label for="w2d7t3">Инфа-нарезка – 6 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>Неделя 3: 11 мая – 17 мая</h2>
+     <table class="schedule-table" id="week3-table">
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Тип дня</th>
+                <th>Утро</th>
+                <th>Днём</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td data-label="Дата">11.05 Вс</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekend">Выходной</span></td>
+                <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w3d1t1" data-taskid="w3d1t1"><label for="w3d1t1">[РУС 1ч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w3d1t2" data-taskid="w3d1t2"><label for="w3d1t2">[ФУЛЛ пробник мат] – 4 ч</label></li>
+                        <li><input type="checkbox" id="w3d1t3" data-taskid="w3d1t3"><label for="w3d1t3">Матем. нарезка – 6 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">12.05 Пн</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w3d2t1" data-taskid="w3d2t1"><label for="w3d2t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w3d2t2" data-taskid="w3d2t2"><label for="w3d2t2">[МАТ пробник 1] – 1.5 ч</label></li>
+                        <li><input type="checkbox" id="w3d2t3" data-taskid="w3d2t3"><label for="w3d2t3">[ИНФ пробник 1] – 1.5 ч</label></li>
+                        <li><input type="checkbox" id="w3d2t4" data-taskid="w3d2t4"><label for="w3d2t4">Матем. нарезка – 2.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">13.05 Вт</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w3d3t1" data-taskid="w3d3t1"><label for="w3d3t1">[РУС 1ч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w3d3t2" data-taskid="w3d3t2"><label for="w3d3t2">[МАТ пробник 2] – 2 ч</label></li>
+                        <li><input type="checkbox" id="w3d3t3" data-taskid="w3d3t3"><label for="w3d3t3">[ИНФ пробник 2] – 2 ч</label></li>
+                        <li><input type="checkbox" id="w3d3t4" data-taskid="w3d3t4"><label for="w3d3t4">Матем. нарезка – 1.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">14.05 Ср</td>
+                <td data-label="Тип дня"><span class="day-type day-type-training">Тренировка</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w3d4t1" data-taskid="w3d4t1"><label for="w3d4t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                         <li><input type="checkbox" id="w3d4t2" data-taskid="w3d4t2"><label for="w3d4t2">Инфа hardprog – 3 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td data-label="Дата">15.05 Чт</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w3d5t1" data-taskid="w3d5t1"><label for="w3d5t1">[РУС 1ч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w3d5t2" data-taskid="w3d5t2"><label for="w3d5t2">Инфа hardprog – 6 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td data-label="Дата">16.05 Пт</td>
+                <td data-label="Тип дня"><span class="day-type day-type-training">Тренировка</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w3d6t1" data-taskid="w3d6t1"><label for="w3d6t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w3d6t2" data-taskid="w3d6t2"><label for="w3d6t2">Матем. нарезка – 2 ч</label></li>
+                        <li><input type="checkbox" id="w3d6t3" data-taskid="w3d6t3"><label for="w3d6t3">Инфа hardprog – 1 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">17.05 Сб</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekend">Выходной</span></td>
+                <td data-label="Утро">—</td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w3d7t1" data-taskid="w3d7t1"><label for="w3d7t1">[ФУЛЛ пробник рус] – 3.5 ч</label></li>
+                        <li><input type="checkbox" id="w3d7t2" data-taskid="w3d7t2"><label for="w3d7t2">Рус. нарезка – 6.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>Неделя 4: 18 мая – 24 мая</h2>
+    <table class="schedule-table" id="week4-table">
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Тип дня</th>
+                <th>Утро</th>
+                <th>Днём</th>
+            </tr>
+        </thead>
+        <tbody>
+             <tr>
+                <td data-label="Дата">18.05 Вс</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekend">Выходной</span></td>
+                <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w4d1t1" data-taskid="w4d1t1"><label for="w4d1t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w4d1t2" data-taskid="w4d1t2"><label for="w4d1t2">[ФУЛЛ пробник мат] – 4 ч</label></li>
+                        <li><input type="checkbox" id="w4d1t3" data-taskid="w4d1t3"><label for="w4d1t3">Матем. нарезка – 6 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">19.05 Пн</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w4d2t1" data-taskid="w4d2t1"><label for="w4d2t1">[РУС 1ч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w4d2t2" data-taskid="w4d2t2"><label for="w4d2t2">[МАТ пробник 1] – 1.5 ч</label></li>
+                        <li><input type="checkbox" id="w4d2t3" data-taskid="w4d2t3"><label for="w4d2t3">[ИНФ пробник 1] – 1.5 ч</label></li>
+                        <li><input type="checkbox" id="w4d2t4" data-taskid="w4d2t4"><label for="w4d2t4">Матем. нарезка – 2.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td data-label="Дата">20.05 Вт</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w4d3t1" data-taskid="w4d3t1"><label for="w4d3t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w4d3t2" data-taskid="w4d3t2"><label for="w4d3t2">[МАТ пробник 2] – 2 ч</label></li>
+                        <li><input type="checkbox" id="w4d3t3" data-taskid="w4d3t3"><label for="w4d3t3">[ИНФ пробник 2] – 2 ч</label></li>
+                        <li><input type="checkbox" id="w4d3t4" data-taskid="w4d3t4"><label for="w4d3t4">Матем. нарезка – 1.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">21.05 Ср</td>
+                <td data-label="Тип дня"><span class="day-type day-type-training">Тренировка</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w4d4t1" data-taskid="w4d4t1"><label for="w4d4t1">[РУС 1ч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                         <li><input type="checkbox" id="w4d4t2" data-taskid="w4d4t2"><label for="w4d4t2">Инфа hardprog – 3 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td data-label="Дата">22.05 Чт</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w4d5t1" data-taskid="w4d5t1"><label for="w4d5t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w4d5t2" data-taskid="w4d5t2"><label for="w4d5t2">Инфа hardprog – 6 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td data-label="Дата">23.05 Пт</td>
+                <td data-label="Тип дня"><span class="day-type day-type-training">Тренировка</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w4d6t1" data-taskid="w4d6t1"><label for="w4d6t1">[РУС 1ч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w4d6t2" data-taskid="w4d6t2"><label for="w4d6t2">Матем. нарезка – 2 ч</label></li>
+                        <li><input type="checkbox" id="w4d6t3" data-taskid="w4d6t3"><label for="w4d6t3">Инфа hardprog – 1 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">24.05 Сб</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekend">Выходной</span></td>
+                <td data-label="Утро" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="w4d7t1" data-taskid="w4d7t1"><label for="w4d7t1">[РУС соч пробник] – 1.5 ч</label></li>
+                     </ul>
+                 </td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="w4d7t2" data-taskid="w4d7t2"><label for="w4d7t2">[ФУЛЛ пробник инф] – 4 ч</label></li>
+                        <li><input type="checkbox" id="w4d7t3" data-taskid="w4d7t3"><label for="w4d7t3">Инфа-нарезка – 6 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <!-- Добавь сюда экзамены по математике и русскому и дни отдыха -->
+             <tr>
+                 <td data-label="Дата" style="font-weight: bold; background-color: #ffeeba;">25.05 Вс</td>
+                 <td data-label="Тип дня"><span class="day-type day-type-training">Отдых</span></td>
+                 <td data-label="Утро">—</td>
+                 <td data-label="Днём" class="tasks-cell">Полный отдых перед математикой, сон 10+ ч</td>
+             </tr>
+             <tr>
+                 <td data-label="Дата" style="font-weight: bold; background-color: #ffeeba;">26.05 Пн</td>
+                 <td data-label="Тип дня"><span class="day-type day-type-training">Отдых</span></td>
+                 <td data-label="Утро">—</td>
+                 <td data-label="Днём" class="tasks-cell">Полный отдых перед математикой, сон 10+ ч</td>
+             </tr>
+             <tr>
+                 <td data-label="Дата" style="font-weight: bold; background-color: #f8d7da;">27.05 Вт</td>
+                 <td data-label="Тип дня"><span class="day-type day-type-exam">Экзамен Матем.</span></td>
+                 <td data-label="Утро">—</td>
+                 <td data-label="Днём" class="tasks-cell">ЕГЭ Математика. После - отдых.</td>
+             </tr>
+              <tr>
+                 <td data-label="Дата" style="font-weight: bold; background-color: #ffeeba;">28.05 Ср</td>
+                 <td data-label="Тип дня"><span class="day-type day-type-training">Отдых</span></td>
+                 <td data-label="Утро">—</td>
+                 <td data-label="Днём" class="tasks-cell">Полный отдых перед русским, сон 10+ ч</td>
+             </tr>
+             <tr>
+                 <td data-label="Дата" style="font-weight: bold; background-color: #ffeeba;">29.05 Чт</td>
+                 <td data-label="Тип дня"><span class="day-type day-type-training">Отдых</span></td>
+                 <td data-label="Утро">—</td>
+                 <td data-label="Днём" class="tasks-cell">Полный отдых перед русским, сон 10+ ч</td>
+             </tr>
+             <tr>
+                 <td data-label="Дата" style="font-weight: bold; background-color: #f8d7da;">30.05 Пт</td>
+                 <td data-label="Тип дня"><span class="day-type day-type-exam">Экзамен Рус.</span></td>
+                 <td data-label="Утро">—</td>
+                 <td data-label="Днём" class="tasks-cell">ЕГЭ Русский язык. После - отдых.</td>
+             </tr>
+        </tbody>
+    </table>
+
+    <!-- Промежуточные дни между русским и финишной прямой к инфе -->
+    <h2>Конец мая - Начало июня</h2>
+    <table class="schedule-table" id="interim-table">
+         <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Тип дня</th>
+                <th>Утро</th>
+                <th>Днём</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Добавь сюда расписание с 31 мая по 7 июня, фокусируясь только на информатике -->
+            <!-- Пример на пару дней -->
+             <tr>
+                <td data-label="Дата">31.05 Сб</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekend">Выходной</span></td>
+                <td data-label="Утро">—</td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="intd1t1" data-taskid="intd1t1"><label for="intd1t1">[ФУЛЛ пробник инф] – 4 ч</label></li>
+                        <li><input type="checkbox" id="intd1t2" data-taskid="intd1t2"><label for="intd1t2">Инфа-нарезка – 6 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+             <tr>
+                <td data-label="Дата">01.06 Вс</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekend">Выходной</span></td>
+                <td data-label="Утро">—</td>
+                 <td data-label="Днём" class="tasks-cell">
+                     <ul class="tasks-list">
+                         <li><input type="checkbox" id="intd2t1" data-taskid="intd2t1"><label for="intd2t1">Инфа hardprog – 5 ч</label></li>
+                         <li><input type="checkbox" id="intd2t2" data-taskid="intd2t2"><label for="intd2t2">Инфа-нарезка – 5 ч</label></li>
+                     </ul>
+                 </td>
+            </tr>
+            <!-- ... и так далее до 7 июня ... -->
+            <tr>
+                <td data-label="Дата">07.06 Сб</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekend">Выходной</span></td>
+                <td data-label="Утро">—</td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="intd8t1" data-taskid="intd8t1"><label for="intd8t1">Инфа hardprog – 5 ч</label></li>
+                         <li><input type="checkbox" id="intd8t2" data-taskid="intd8t2"><label for="intd8t2">Инфа-нарезка – 5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+
+        </tbody>
+    </table>
+
+
+    <h2>Последние дни: 8 июня – 11 июня</h2>
+    <table class="schedule-table" id="final-days-table">
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Тип дня</th>
+                <th>Утро</th>
+                <th>Днём</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td data-label="Дата">08.06 Вс</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekend">Выходной</span></td>
+                <td data-label="Утро">—</td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="find1t1" data-taskid="find1t1"><label for="find1t1">[ФУЛЛ пробник инф] – 4 ч</label></li>
+                        <li><input type="checkbox" id="find1t2" data-taskid="find1t2"><label for="find1t2">Инфа-нарезка – 6 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td data-label="Дата">09.06 Пн</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                <td data-label="Утро">—</td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="find2t1" data-taskid="find2t1"><label for="find2t1">[ИНФ пробник 1] – 1.5 ч</label></li>
+                        <li><input type="checkbox" id="find2t2" data-taskid="find2t2"><label for="find2t2">[ИНФ пробник 2] – 2 ч</label></li>
+                        <li><input type="checkbox" id="find2t3" data-taskid="find2t3"><label for="find2t3">Инфа-нарезка – 3.5 ч</label></li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td data-label="Дата">10.06 Вт</td>
+                <td data-label="Тип дня"><span class="day-type day-type-weekday">Будний</span></td>
+                <td data-label="Утро">—</td>
+                <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li><input type="checkbox" id="find3t1" data-taskid="find3t1"><label for="find3t1">Инфа hardprog – 6 ч</label></li>
+                        <li><input type="checkbox" id="find3t2" data-taskid="find3t2"><label for="find3t2">Инфа-нарезка – 1 ч</label></li>
+                    </ul>
+                </td>
+             </tr>
+             <tr>
+                 <td data-label="Дата" style="font-weight: bold; background-color: #f8d7da;">11.06 Ср</td>
+                 <td data-label="Тип дня"><span class="day-type day-type-exam">Экзамен информ.</span></td>
+                 <td data-label="Утро" class="tasks-cell">
+                    <ul class="tasks-list">
+                         <li><input type="checkbox" id="find4t1" data-taskid="find4t1"><label for="find4t1">05:00–07:00 — повтор алгоритмов</label></li>
+                     </ul>
+                 </td>
+                 <td data-label="Днём" class="tasks-cell">
+                    <ul class="tasks-list">
+                        <li>10:00 — ЕГЭ информатика</li>
+                        <li>После — отдых</li>
+                    </ul>
+                 </td>
+            </tr>
+        </tbody>
+    </table>
+
+</div> <!-- /.schedule-container -->
+
+
+<!-- Кнопка для вызова ToDo List -->
+<button class="todo-toggle-button" id="todo-toggle-btn" title="Открыть/Закрыть доп. задачи">📝</button>
+
+<!-- Контейнер для ToDo List (скрыт по умолчанию) -->
+<div class="todo-chat-container" id="todo-chat">
+    <div class="todo-header">Дополнительные задачи</div>
+    <ul class="todo-list" id="todo-list-items">
+        <!-- Задачи будут добавляться сюда -->
+    </ul>
+    <div class="todo-input-area">
+        <input type="text" id="todo-input" placeholder="Новая задача...">
+        <button id="add-todo-btn">Добавить</button>
+    </div>
+</div>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // --- Функционал чекбоксов в расписании ---
+        const scheduleCheckboxes = document.querySelectorAll('.schedule-container .tasks-list input[type="checkbox"]');
+        const scheduleTasksStorageKey = 'scheduleTasksState';
+
+        // Загрузка состояния чекбоксов из localStorage
+        function loadScheduleState() {
+            const savedState = JSON.parse(localStorage.getItem(scheduleTasksStorageKey) || '{}');
+            scheduleCheckboxes.forEach(checkbox => {
+                const taskId = checkbox.dataset.taskid;
+                if (savedState[taskId] !== undefined) {
+                    checkbox.checked = savedState[taskId];
+                    updateTaskStyle(checkbox);
+                }
+                // Добавляем обработчик событий
+                checkbox.addEventListener('change', handleScheduleCheckboxChange);
+            });
+        }
+
+        // Обработчик изменения состояния чекбокса в расписании
+        function handleScheduleCheckboxChange(event) {
+            const checkbox = event.target;
+            updateTaskStyle(checkbox);
+            saveScheduleState();
+        }
+
+        // Обновление стиля задачи (зачеркнуто/не зачеркнуто)
+        function updateTaskStyle(checkbox) {
+             const listItem = checkbox.closest('li');
+             if (listItem) {
+                 if (checkbox.checked) {
+                    listItem.classList.add('completed');
+                 } else {
+                    listItem.classList.remove('completed');
+                 }
+             }
+        }
+
+        // Сохранение состояния всех чекбоксов расписания в localStorage
+        function saveScheduleState() {
+            const currentState = {};
+            scheduleCheckboxes.forEach(checkbox => {
+                currentState[checkbox.dataset.taskid] = checkbox.checked;
+            });
+            localStorage.setItem(scheduleTasksStorageKey, JSON.stringify(currentState));
+        }
+
+        // --- Функционал ToDo List (Чат) ---
+        const todoToggleButton = document.getElementById('todo-toggle-btn');
+        const todoChatContainer = document.getElementById('todo-chat');
+        const todoListElement = document.getElementById('todo-list-items');
+        const todoInput = document.getElementById('todo-input');
+        const addTodoButton = document.getElementById('add-todo-btn');
+        const todoStorageKey = 'todoListItems';
+
+        let todoItems = []; // Массив для хранения задач ToDo
+
+        // Загрузка задач ToDo из localStorage
+        function loadTodoItems() {
+            const savedTodos = JSON.parse(localStorage.getItem(todoStorageKey) || '[]');
+            todoItems = savedTodos;
+            renderTodoItems();
+        }
+
+        // Отображение задач ToDo в списке
+        function renderTodoItems() {
+            todoListElement.innerHTML = ''; // Очищаем список перед рендером
+            if (todoItems.length === 0) {
+                 // Можно добавить сообщение, если список пуст
+                 // todoListElement.innerHTML = '<li>Нет дополнительных задач</li>';
+            } else {
+                todoItems.forEach(item => {
+                    const li = document.createElement('li');
+                    li.dataset.id = item.id;
+                    li.classList.toggle('completed', item.completed);
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.checked = item.completed;
+                    checkbox.addEventListener('change', () => toggleTodoComplete(item.id));
+
+                    const label = document.createElement('label');
+                    label.textContent = item.text;
+                    // Позволим кликать на текст для отметки
+                    label.addEventListener('click', () => {
+                        checkbox.checked = !checkbox.checked;
+                        toggleTodoComplete(item.id);
+                    });
+
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = '×'; // Крестик для удаления
+                    deleteButton.className = 'todo-delete-button';
+                    deleteButton.title = 'Удалить задачу';
+                    deleteButton.addEventListener('click', () => deleteTodoItem(item.id));
+
+                    li.appendChild(checkbox);
+                    li.appendChild(label);
+                    li.appendChild(deleteButton);
+                    todoListElement.appendChild(li);
+                });
+            }
+        }
+
+        // Добавление новой задачи ToDo
+        function addTodoItem() {
+            const text = todoInput.value.trim();
+            if (text === '') return; // Не добавляем пустые задачи
+
+            const newItem = {
+                id: Date.now(), // Простой уникальный ID на основе времени
+                text: text,
+                completed: false
+            };
+
+            todoItems.push(newItem);
+            todoInput.value = ''; // Очищаем поле ввода
+            saveTodoItems();
+            renderTodoItems();
+            todoListElement.scrollTop = todoListElement.scrollHeight; // Прокрутка вниз
+        }
+
+        // Переключение состояния выполнения задачи ToDo
+        function toggleTodoComplete(id) {
+            todoItems = todoItems.map(item =>
+                item.id === id ? { ...item, completed: !item.completed } : item
+            );
+            saveTodoItems();
+            renderTodoItems(); // Перерисовываем, чтобы обновить стили
+        }
+
+        // Удаление задачи ToDo
+        function deleteTodoItem(id) {
+            todoItems = todoItems.filter(item => item.id !== id);
+            saveTodoItems();
+            renderTodoItems();
+        }
+
+        // Сохранение задач ToDo в localStorage
+        function saveTodoItems() {
+            localStorage.setItem(todoStorageKey, JSON.stringify(todoItems));
+        }
+
+        // Обработчик для кнопки добавления и Enter в поле ввода
+        addTodoButton.addEventListener('click', addTodoItem);
+        todoInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                addTodoItem();
+            }
+        });
+
+        // Обработчик для кнопки открытия/скрытия ToDo чата
+        todoToggleButton.addEventListener('click', () => {
+            todoChatContainer.classList.toggle('visible');
+             // Если открываем, можно сфокусироваться на поле ввода
+            if (todoChatContainer.classList.contains('visible')) {
+                todoInput.focus();
+            }
+        });
+
+        // --- Инициализация при загрузке страницы ---
+        loadScheduleState();
+        loadTodoItems();
+
+    });
+</script>
+
+</body>
+</html>
