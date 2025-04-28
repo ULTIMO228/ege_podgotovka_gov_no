@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import { cookies } from "next/headers"
 import { getServerClient } from "@/lib/supabase"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -8,7 +9,8 @@ import { Card, CardContent } from "@/components/ui/card"
 export const dynamic = "force-dynamic"
 
 export default async function ExamsPage() {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   // Get all exam tasks
   const { data: examTasks } = await supabase

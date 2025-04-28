@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import { cookies } from "next/headers"
 import { getServerClient } from "@/lib/supabase"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -12,7 +13,8 @@ import { Achievements } from "@/components/achievements"
 export const dynamic = "force-dynamic"
 
 export default async function DashboardPage() {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   // Get user stats
   const { data: statsData } = await supabase.from("user_stats").select("*").limit(1)

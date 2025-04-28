@@ -1,8 +1,10 @@
+import { cookies } from "next/headers"
 import { getServerClient } from "@/lib/supabase"
 import { Award, Check, Calendar, Star, Trophy, Zap } from "lucide-react"
 
 export async function Achievements() {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   // Get all achievements
   let { data: achievements } = await supabase.from("achievements").select("*")

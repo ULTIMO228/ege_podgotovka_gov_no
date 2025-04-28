@@ -1,17 +1,16 @@
 import { createClient } from "@supabase/supabase-js"
-import { cookies } from "next/headers"
 import type { Database } from "@/types/database"
 
 // Создаем клиент для серверных компонентов
-export function getServerClient() {
-  const cookieStore = cookies()
+// Эта функция принимает cookieStore как параметр вместо импорта cookies
+export function getServerClient(cookieStore?: { get: (name: string) => { value: string } | undefined }) {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || ""
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 
   return createClient<Database>(supabaseUrl, supabaseKey, {
     cookies: {
       get(name: string) {
-        return cookieStore.get(name)?.value
+        return cookieStore?.get(name)?.value
       },
     },
   })

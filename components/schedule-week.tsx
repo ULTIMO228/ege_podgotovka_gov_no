@@ -1,9 +1,11 @@
+import { cookies } from "next/headers"
 import { getServerClient } from "@/lib/supabase"
 import { ScheduleDay } from "@/components/schedule-day"
 import type { Week } from "@/types/database"
 
 export async function ScheduleWeek({ week, filter }: { week: Week; filter: string }) {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   // Get days for this week
   const { data: days } = await supabase

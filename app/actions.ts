@@ -1,11 +1,13 @@
 "use server"
 
+import { cookies } from "next/headers"
 import { getServerClient } from "@/lib/supabase"
 import { revalidatePath } from "next/cache"
 
 // Обновление статуса задачи
 export async function toggleTaskCompletion(profileName: string, taskId: number, isCompleted: boolean) {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   const { data, error } = await supabase
     .from("tasks")
@@ -30,7 +32,8 @@ export async function toggleTaskCompletion(profileName: string, taskId: number, 
 
 // Обновление баллов задачи
 export async function updateTaskScore(profileName: string, taskId: number, score: number) {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   const { data, error } = await supabase
     .from("tasks")
@@ -62,7 +65,8 @@ export async function updateDayInfo(
     day_type?: string
   },
 ) {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   const { data, error } = await supabase
     .from("days")
@@ -93,7 +97,8 @@ export async function addTask(
     activity_template_id?: number | null
   },
 ) {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   // Добавляем профиль к данным задачи
   const taskWithProfile = {
@@ -129,7 +134,8 @@ export async function updateTask(
     activity_template_id?: number | null
   },
 ) {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   const { data, error } = await supabase
     .from("tasks")
@@ -151,7 +157,8 @@ export async function updateTask(
 
 // Удаление задачи
 export async function deleteTask(profileName: string, taskId: number) {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   const { error } = await supabase.from("tasks").delete().eq("id", taskId).eq("user_profile_name", profileName) // Фильтр по профилю
 
@@ -171,7 +178,8 @@ export async function deleteTask(profileName: string, taskId: number) {
 
 // Обновление общего количества задач
 export async function updateTotalTasks(profileName: string, change: number) {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   // Получаем текущую статистику
   const { data: statsData, error: statsError } = await supabase
@@ -227,13 +235,14 @@ export async function updateTotalTasks(profileName: string, change: number) {
 
 // Добавление задачи в список дел
 export async function addTodoItem(profileName: string, formData: FormData) {
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
+
   const text = formData.get("text") as string
 
   if (!text || text.trim() === "") {
     throw new Error("Todo text cannot be empty")
   }
-
-  const supabase = getServerClient()
 
   const { data, error } = await supabase
     .from("todo_items")
@@ -251,7 +260,8 @@ export async function addTodoItem(profileName: string, formData: FormData) {
 
 // Переключение статуса задачи в списке дел
 export async function toggleTodoCompletion(profileName: string, todoId: number, isCompleted: boolean) {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   const { data, error } = await supabase
     .from("todo_items")
@@ -274,7 +284,8 @@ export async function toggleTodoCompletion(profileName: string, todoId: number, 
 
 // Удаление задачи из списка дел
 export async function deleteTodoItem(profileName: string, todoId: number) {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   const { error } = await supabase.from("todo_items").delete().eq("id", todoId).eq("user_profile_name", profileName) // Фильтр по профилю
 
@@ -289,7 +300,8 @@ export async function deleteTodoItem(profileName: string, todoId: number) {
 
 // Обновление статистики пользователя
 async function updateUserStats(profileName: string, taskCompleted: boolean) {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   // Получаем текущую статистику
   const { data: statsData, error: statsError } = await supabase
@@ -392,7 +404,8 @@ async function updateUserStats(profileName: string, taskCompleted: boolean) {
 
 // Проверка и разблокировка достижений
 async function checkAndUnlockAchievements(profileName: string, stats: any, completedTasks: number, streakDays: number) {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   // Получаем все достижения
   const { data: achievements, error: achievementsError } = await supabase.from("achievements").select("*")
@@ -444,7 +457,9 @@ async function checkAndUnlockAchievements(profileName: string, stats: any, compl
       })
 
       // Добавляем очки достижения пользователю
-      await supabase
+      const cookieStoreInner = cookies()
+      const supabaseInner = getServerClient(cookieStoreInner)
+      await supabaseInner
         .from("user_stats")
         .update({
           points: stats.points + achievement.points,
@@ -457,7 +472,8 @@ async function checkAndUnlockAchievements(profileName: string, stats: any, compl
 
 // Создание расписания для профиля
 export async function createScheduleForProfile(profileName: string) {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   // Получаем структуру недель и дней из профиля "Сева"
   const { data: sevaWeeks } = await supabase

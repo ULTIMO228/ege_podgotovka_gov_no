@@ -1,3 +1,4 @@
+import { cookies } from "next/headers"
 import { getServerClient } from "@/lib/supabase"
 import { NextResponse } from "next/server"
 
@@ -10,7 +11,8 @@ export async function GET() {
   }
 
   try {
-    const supabase = getServerClient()
+    const cookieStore = cookies()
+    const supabase = getServerClient(cookieStore)
 
     // Очистка существующих данных
     await supabase.from("user_achievements").delete().neq("id", 0)

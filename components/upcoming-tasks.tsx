@@ -1,10 +1,12 @@
+import { cookies } from "next/headers"
 import { getServerClient } from "@/lib/supabase"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TaskList } from "@/components/task-list"
 
 export async function UpcomingTasks() {
-  const supabase = getServerClient()
+  const cookieStore = cookies()
+  const supabase = getServerClient(cookieStore)
 
   // Get today's date
   const today = new Date()
