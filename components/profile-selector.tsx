@@ -5,112 +5,153 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "@/components/ui/use-toast"
-import { NewUserProfilePlaceholder } from "@/components/new-user-profile-placeholder"
+import { Users, UserPlus, Database } from "lucide-react"
 import { getBrowserClient } from "@/lib/supabase"
-import { User, UserPlus, AlertCircle } from "lucide-react"
+import { NewUserProfilePlaceholder } from "@/components/new-user-profile-placeholder"
+import type { UserProfile } from "@/types/database"
+import Link from "next/link"
 
 interface ProfileSelectorProps {
   onProfileSelect: (profileName: string) => void
 }
 
 export function ProfileSelector({ onProfileSelect }: ProfileSelectorProps) {
-  const [profiles, setProfiles] = useState<{ name: string }[]>([])
-  const [isLoadingProfiles, setIsLoadingProfiles] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [showNewUserPlaceholder, setShowNewUserPlaceholder] = useState(false)
+  const [profiles, setProfiles] = useState<UserProfile[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showNewProfileForm, setShowNewProfileForm] = useState(false)
 
+  // Загрузка профилей
   useEffect(() => {
-    async function fetchProfiles() {
+    const fetchProfiles = async () => {
       try {
-        setIsLoadingProfiles(true)
-        const { data, error } = await getBrowserClient().from("user_profiles").select("name")
+        const supabase = getBrowserClient()
+        const { data, error } = await supabase.from("user_profiles").select("*").order("name", { ascending: true })
 
         if (error) {
           throw error
         }
 
         setProfiles(data || [])
-      } catch (err) {
-        console.error("Error fetching profiles:", err)
-        setError("Не удалось загрузить профили")
+      } catch (error) {
+        console.error("Ошибка при загрузке профилей:", error)
         toast({
           title: "Ошибка",
           description: "Не удалось загрузить список профилей",
           variant: "destructive",
         })
       } finally {
-        setIsLoadingProfiles(false)
+        setIsLoading(false)
       }
     }
 
     fetchProfiles()
   }, [])
 
-  const handleProfileClick = (profileName: string) => {
-    onProfileSelect(profileName)
-    toast({
-      title: "Профиль выбран",
-      description: `Вы вошли как ${profileName}`,
-    })
+  // Обработчик выбора профиля
+  const handleProfileSelect = async () => {
+    if (!selectedProfileId) {
+      toast({
+        title: "Выберите профиль",
+        description: "Пожалуйста, выберите профиль для продолжения",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId)
+
+      if (selectedProfile) {
+        // Имитация задержки для UX
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        onProfileSelect(selectedProfile.name)
+      }
+    } catch (error) {
+      console.error("Ошибка при выборе профиля:", error)
+      toast({
+        title: "Ошибка",
+        description: "Не удалось выбрать профиль",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  const handleNewUserClick = () => {
-    setShowNewUserPlaceholder(true)
-  }
-
-  if (showNewUserPlaceholder) {
-    return <NewUserProfilePlaceholder onBack={() => setShowNewUserPlaceholder(false)} />
+  // Отображение формы создания нового профиля
+  if (showNewProfileForm) {
+    return <NewUserProfilePlaceholder onBack={() => setShowNewProfileForm(false)} />
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl text-center">Выберите профиль</CardTitle>
-        <CardDescription className="text-center">Выберите профиль ученика для работы с расписанием</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {isLoadingProfiles ? (
-          <>
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </>
-        ) : error ? (
-          <div className="text-center p-4 border border-red-200 rounded-md bg-red-50">
-            <AlertCircle className="mx-auto h-6 w-6 text-red-500 mb-2" />
-            <p className="text-red-600">{error}</p>
-            <p className="text-sm text-red-500 mt-2">
-              Возможно, таблица user_profiles не существует или у вас нет прав доступа.
-            </p>
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold text-center">Выбор профиля</CardTitle>
+          <CardDescription className="text-center">Выберите профиль для работы с расписанием</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex justify-center mb-6">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+              <Users className="h-8 w-8 text-primary" />
+            </div>
           </div>
-        ) : (
-          <>
-            {profiles.length === 0 ? (
-              <div className="text-center p-4">
-                <p>Нет доступных профилей</p>
-              </div>
-            ) : (
-              profiles.map((profile) => (
+
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : profiles.length === 0 ? (
+            <div className="text-center py-4">
+              <p className="text-muted-foreground">Профили не найдены</p>
+              <Button className="mt-4" onClick={() => setShowNewProfileForm(true)}>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Создать новый профиль
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {profiles.map((profile) => (
                 <Button
-                  key={profile.name}
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={() => handleProfileClick(profile.name)}
+                  key={profile.id}
+                  variant={selectedProfileId === profile.id ? "default" : "outline"}
+                  className="w-full justify-start text-left"
+                  onClick={() => setSelectedProfileId(profile.id)}
                 >
-                  <User className="mr-2 h-4 w-4" />
                   {profile.name}
                 </Button>
-              ))
-            )}
-          </>
-        )}
-      </CardContent>
-      <CardFooter>
-        <Button className="w-full" onClick={handleNewUserClick}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          Новый ученик
-        </Button>
-      </CardFooter>
-    </Card>
+              ))}
+
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-left mt-4"
+                onClick={() => setShowNewProfileForm(true)}
+              >
+                <UserPlus className="mr-2 h-4 w-4" />
+                Новый ученик
+              </Button>
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="flex flex-col space-y-2">
+          <Button className="w-full" disabled={isSubmitting || !selectedProfileId} onClick={handleProfileSelect}>
+            {isSubmitting ? "Загрузка..." : "Продолжить"}
+          </Button>
+
+          <Link href="/seed" className="w-full">
+            <Button variant="outline" className="w-full">
+              <Database className="mr-2 h-4 w-4" />
+              Инициализация данных
+            </Button>
+          </Link>
+        </CardFooter>
+      </Card>
+    </div>
   )
 }

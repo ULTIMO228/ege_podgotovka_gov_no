@@ -1,5 +1,6 @@
+// Импортируем функцию для получения профиля
+import { getProfileFromCookies } from "@/lib/profile"
 import { Suspense } from "react"
-import { cookies } from "next/headers"
 import { getServerClient } from "@/lib/supabase"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -13,11 +14,25 @@ import { Achievements } from "@/components/achievements"
 export const dynamic = "force-dynamic"
 
 export default async function DashboardPage() {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
+  const supabase = getServerClient()
+  const profileName = getProfileFromCookies()
 
-  // Get user stats
-  const { data: statsData } = await supabase.from("user_stats").select("*").limit(1)
+  // Если профиль не выбран, показываем сообщение
+  if (!profileName) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh]">
+        <h2 className="text-2xl font-bold mb-4">Профиль не выбран</h2>
+        <p className="text-muted-foreground mb-6">Пожалуйста, выберите профиль для просмотра данных</p>
+      </div>
+    )
+  }
+
+  // Get user stats с учетом профиля
+  const { data: statsData } = await supabase
+    .from("user_stats")
+    .select("*")
+    .eq("user_profile_name", profileName)
+    .limit(1)
 
   const stats = statsData?.[0] || {
     total_tasks: 0,
@@ -25,6 +40,7 @@ export default async function DashboardPage() {
     streak_days: 0,
     points: 0,
     level: 1,
+    user_profile_name: profileName,
   }
 
   // Calculate completion percentage

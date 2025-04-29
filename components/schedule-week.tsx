@@ -1,75 +1,108 @@
-import { cookies } from "next/headers"
-import { getServerClient } from "@/lib/supabase"
+"use client"
+
+import { useState, useEffect } from "react"
+import { getBrowserClient } from "@/lib/supabase"
 import { ScheduleDay } from "@/components/schedule-day"
-import type { Week } from "@/types/database"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
+import { useProfile } from "@/context/ProfileContext"
 
-export async function ScheduleWeek({ week, filter }: { week: Week; filter: string }) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
+interface ScheduleWeekProps {
+  week: {
+    id: number
+    title: string
+    start_date: string
+    end_date: string
+  }
+  filter: string
+  isEditing?: boolean
+}
 
-  // Get days for this week
-  const { data: days } = await supabase
-    .from("days")
-    .select("*")
-    .eq("week_id", week.id)
-    .order("date", { ascending: true })
+export function ScheduleWeek({ week, filter, isEditing = false }: ScheduleWeekProps) {
+  const { selectedProfile } = useProfile()
+  const [days, setDays] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!days || days.length === 0) {
-    return null // Возвращаем null вместо пустого блока
+  useEffect(() => {
+    async function fetchDays() {
+      if (!selectedProfile) {
+        setLoading(false)
+        return
+      }
+
+      try {
+        setLoading(true)
+        const supabase = getBrowserClient()
+
+        const { data, error } = await supabase
+          .from("days")
+          .select("*")
+          .eq("week_id", week.id)
+          .eq("user_profile_name", selectedProfile)
+          .order("date", { ascending: true })
+
+        if (error) {
+          throw error
+        }
+
+        setDays(data || [])
+      } catch (err: any) {
+        console.error("Error fetching days:", err)
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDays()
+  }, [week.id, selectedProfile])
+
+  if (loading) {
+    return <Skeleton className="h-[300px] w-full" />
   }
 
-  // Get all tasks for this week's days
-  const dayIds = days.map((day) => day.id)
-  const { data: tasks } = await supabase
-    .from("tasks")
-    .select("*")
-    .in("day_id", dayIds)
-    .order("time_of_day", { ascending: true })
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Ошибка</AlertTitle>
+        <AlertDescription>Не удалось загрузить данные дней: {error}</AlertDescription>
+      </Alert>
+    )
+  }
 
-  // Filter days based on the selected filter
-  const today = new Date().toISOString().split("T")[0]
+  if (!days || days.length === 0) {
+    return (
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Нет данных</AlertTitle>
+        <AlertDescription>Дни для недели не найдены.</AlertDescription>
+      </Alert>
+    )
+  }
 
+  // Фильтрация дней по типу
   const filteredDays = days.filter((day) => {
-    switch (filter) {
-      case "upcoming":
-        return day.date >= today
-      case "past":
-        return day.date < today
-      case "today":
-        return day.date === today
-      case "weekend":
-        return day.day_type === "weekend"
-      case "weekday":
-        return day.day_type === "weekday"
-      case "exam":
-        return day.day_type === "exam"
-      default:
-        return true
-    }
+    if (filter === "all") return true
+    if (filter === "exams") return day.day_type === "exam"
+    if (filter === "training") return day.day_type === "training"
+    if (filter === "weekdays") return day.day_type === "weekday"
+    if (filter === "weekends") return day.day_type === "weekend"
+    return true
   })
 
   if (filteredDays.length === 0) {
-    return null // Возвращаем null вместо пустого блока
+    return null // Не показываем неделю, если нет дней, соответствующих фильтру
   }
 
-  // Group tasks by day_id
-  const tasksByDay = tasks?.reduce(
-    (acc, task) => {
-      if (!acc[task.day_id]) {
-        acc[task.day_id] = []
-      }
-      acc[task.day_id].push(task)
-      return acc
-    },
-    {} as Record<number, typeof tasks>,
-  )
-
   return (
-    <div>
-      <h2 className="text-xl font-semibold mb-4 border-b pb-2">{week.title}</h2>
-      <div className="space-y-4">
+    <div className="space-y-4">
+      <h2 className="text-xl font-semibold">{week.title}</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredDays.map((day) => (
-          <ScheduleDay key={day.id} day={day} tasks={tasksByDay?.[day.id] || []} />
+          <ScheduleDay key={day.id} day={day} isEditing={isEditing} />
         ))}
       </div>
     </div>

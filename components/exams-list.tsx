@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useMemo } from "react"
+import React, { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,9 @@ import { DateRangeFilter } from "@/components/ui/date-range-filter"
 import { format, endOfDay, startOfDay, isAfter, isBefore, isEqual, parseISO } from "date-fns"
 import { ru } from "date-fns/locale"
 import { cn } from "@/lib/utils"
+
+// Добавляем импорт useProfile
+import { useProfile } from "@/context/ProfileContext"
 
 // --- Типизация данных ---
 interface Exam {
@@ -113,17 +116,18 @@ const getCardBackground = (exam: Exam): string => {
   }
 }
 
-// --- Основной Компонент Списка ---
+// В начале функции ExamsList добавляем получение профиля
 export function ExamsList({ exams: initialExams, title }: ExamsListProps) {
   const router = useRouter()
+  const { selectedProfile } = useProfile() // Получаем выбранный профиль
 
   // --- Состояния Компонента ---
-  const [pendingScores, setPendingScores] = React.useState<Set<number>>(new Set()) // Используем Set для удобства
-  const [pendingStatus, setPendingStatus] = React.useState<Set<number>>(new Set())
-  const [openFolders, setOpenFolders] = React.useState<Record<string, boolean>>({})
-  const [startDate, setStartDate] = React.useState<Date | null>(null)
-  const [endDate, setEndDate] = React.useState<Date | null>(null)
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false)
+  const [pendingScores, setPendingScores] = useState<Set<number>>(new Set()) // Используем Set для удобства
+  const [pendingStatus, setPendingStatus] = useState<Set<number>>(new Set())
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({})
+  const [startDate, setStartDate] = useState<Date | null>(null)
+  const [endDate, setEndDate] = useState<Date | null>(null)
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
 
   // Состояние для формы создания (пример)
   const [newExamData, setNewExamData] = React.useState({
@@ -134,6 +138,22 @@ export function ExamsList({ exams: initialExams, title }: ExamsListProps) {
     score: "",
     isCompleted: false,
   })
+
+  const hasSelectedProfile = !!selectedProfile // Определяем наличие профиля вне условного блока
+
+  // Проверка наличия профиля
+  if (!hasSelectedProfile) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+        </CardHeader>
+        <CardContent className="text-center py-10 text-muted-foreground">
+          Пожалуйста, выберите профиль для просмотра пробников.
+        </CardContent>
+      </Card>
+    )
+  }
 
   // Обработчик изменения диапазона дат
   const handleRangeChange = (start: Date | null, end: Date | null) => {

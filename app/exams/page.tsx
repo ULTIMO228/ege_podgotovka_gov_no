@@ -1,22 +1,43 @@
 import { Suspense } from "react"
-import { cookies } from "next/headers"
 import { getServerClient } from "@/lib/supabase"
+import { getProfileFromCookies } from "@/lib/profile"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ExamsList } from "@/components/exams-list"
 import { Card, CardContent } from "@/components/ui/card"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
 export default async function ExamsPage() {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
+  const supabase = getServerClient()
+  const profileName = getProfileFromCookies()
 
-  // Get all exam tasks
+  // Если профиль не выбран, показываем сообщение
+  if (!profileName) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Пробники ЕГЭ</h1>
+          <p className="text-muted-foreground">Отслеживайте результаты всех пробников</p>
+        </div>
+
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Профиль не выбран</AlertTitle>
+          <AlertDescription>Пожалуйста, выберите профиль для просмотра пробников.</AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
+  // Get all exam tasks с учетом профиля
   const { data: examTasks } = await supabase
     .from("tasks")
     .select("*, day:day_id(*)")
     .eq("is_exam", true)
+    .eq("user_profile_name", profileName)
     .order("day_id", { ascending: true })
 
   // Group exams by subject

@@ -9,73 +9,80 @@ import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/use-toast"
 import { Lock } from "lucide-react"
 
+// Константа для пароля
+const CORRECT_PASSWORD = "Cu29Ni28"
+
 interface PasswordLoginProps {
-  onUserLoginSuccess: () => void
-  onAdminLoginSuccess: () => void
+  onLoginSuccess: () => void
 }
 
-export function PasswordLogin({ onUserLoginSuccess, onAdminLoginSuccess }: PasswordLoginProps) {
+export function PasswordLogin({ onLoginSuccess }: PasswordLoginProps) {
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [attempts, setAttempts] = useState(0)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
-    // Имитация задержки сети
+    // Имитация задержки для безопасности
     setTimeout(() => {
-      if (password === "Cu29Ni28") {
-        onUserLoginSuccess()
+      if (password === CORRECT_PASSWORD) {
         toast({
           title: "Успешный вход",
-          description: "Выберите профиль ученика",
+          description: "Добро пожаловать в систему подготовки к ЕГЭ",
         })
-      } else if (password === "admin000") {
-        onAdminLoginSuccess()
-        toast({
-          title: "Вход администратора",
-          description: "Добро пожаловать",
-        })
+        onLoginSuccess()
       } else {
+        setAttempts(attempts + 1)
         toast({
-          title: "Ошибка входа",
-          description: "Неверный пароль. Пожалуйста, попробуйте снова.",
+          title: "Неверный пароль",
+          description: "Пожалуйста, проверьте пароль и попробуйте снова",
           variant: "destructive",
         })
-        setIsLoading(false)
+        setPassword("")
       }
-    }, 500)
+      setIsLoading(false)
+    }, 1000)
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl text-center">ЕГЭ Расписание</CardTitle>
-        <CardDescription className="text-center">Введите пароль для доступа к системе</CardDescription>
-      </CardHeader>
-      <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="relative">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold text-center">График подготовки к ЕГЭ</CardTitle>
+          <CardDescription className="text-center">Введите пароль для доступа к системе</CardDescription>
+        </CardHeader>
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-4">
+            <div className="flex justify-center mb-6">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                <Lock className="h-8 w-8 text-primary" />
+              </div>
+            </div>
+            <div className="space-y-2">
               <Input
                 id="password"
                 type="password"
                 placeholder="Введите пароль"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="pr-10"
                 disabled={isLoading}
+                className="text-center"
+                autoComplete="current-password"
               />
-              <Lock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              {attempts > 0 && (
+                <p className="text-sm text-destructive text-center">Неверный пароль. Попыток: {attempts}</p>
+              )}
             </div>
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Проверка..." : "Войти"}
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+          </CardContent>
+          <CardFooter>
+            <Button type="submit" className="w-full" disabled={isLoading || !password}>
+              {isLoading ? "Проверка..." : "Войти"}
+            </Button>
+          </CardFooter>
+        </form>
+      </Card>
+    </div>
   )
 }

@@ -1,61 +1,12 @@
 "use server"
 
-import { cookies } from "next/headers"
-import { getServerClient } from "@/lib/supabase"
 import { revalidatePath } from "next/cache"
+import { getServerClient } from "@/lib/supabase"
+import { getProfileName } from "@/lib/profile"
+import { format, startOfWeek, endOfWeek } from "date-fns"
+import type { Task } from "@/types/database"
 
-// Обновление статуса задачи
-export async function toggleTaskCompletion(profileName: string, taskId: number, isCompleted: boolean) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
-
-  const { data, error } = await supabase
-    .from("tasks")
-    .update({ is_completed: isCompleted })
-    .eq("id", taskId)
-    .eq("user_profile_name", profileName) // Фильтр по профилю
-    .select()
-
-  if (error) {
-    throw new Error(`Failed to update task: ${error.message}`)
-  }
-
-  // Обновляем статистику пользователя
-  await updateUserStats(profileName, isCompleted)
-
-  revalidatePath("/")
-  revalidatePath("/schedule")
-  revalidatePath("/exams")
-
-  return data[0]
-}
-
-// Обновление баллов задачи
-export async function updateTaskScore(profileName: string, taskId: number, score: number) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
-
-  const { data, error } = await supabase
-    .from("tasks")
-    .update({ score })
-    .eq("id", taskId)
-    .eq("user_profile_name", profileName) // Фильтр по профилю
-    .select()
-
-  if (error) {
-    throw new Error(`Failed to update task score: ${error.message}`)
-  }
-
-  revalidatePath("/")
-  revalidatePath("/schedule")
-  revalidatePath("/exams")
-
-  return data[0]
-}
-
-// Обновление информации о дне
 export async function updateDayInfo(
-  profileName: string,
   dayId: number,
   updates: {
     comment?: string
@@ -65,126 +16,55 @@ export async function updateDayInfo(
     day_type?: string
   },
 ) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
-
-  const { data, error } = await supabase
-    .from("days")
-    .update(updates)
-    .eq("id", dayId)
-    .eq("user_profile_name", profileName) // Фильтр по профилю
-    .select()
+  const supabase = getServerClient()
+  const { error } = await supabase.from("days").update(updates).eq("id", dayId)
 
   if (error) {
-    throw new Error(`Failed to update day info: ${error.message}`)
+    throw new Error(`Failed to update day: ${error.message}`)
   }
 
-  revalidatePath("/")
   revalidatePath("/schedule")
-
-  return data[0]
 }
 
-// Добавление задачи
 export async function addTask(
   profileName: string,
-  taskData: {
-    day_id: number
-    description: string
-    duration: string
-    time_of_day: string
-    is_exam: boolean
-    activity_template_id?: number | null
-  },
+  dayId: number,
+  task: Omit<Task, "id" | "created_at" | "user_profile_name">,
 ) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
+  const supabase = getServerClient()
 
-  // Добавляем профиль к данным задачи
-  const taskWithProfile = {
-    ...taskData,
+  const { error } = await supabase.from("tasks").insert({
+    ...task,
+    day_id: dayId,
     user_profile_name: profileName,
-  }
-
-  const { data, error } = await supabase.from("tasks").insert(taskWithProfile).select()
+  })
 
   if (error) {
     throw new Error(`Failed to add task: ${error.message}`)
   }
 
-  // Обновляем общее количество задач в статистике
-  await updateTotalTasks(profileName, 1)
-
-  revalidatePath("/")
   revalidatePath("/schedule")
-  revalidatePath("/exams")
-
-  return data[0]
 }
 
-// Обновление задачи
-export async function updateTask(
-  profileName: string,
-  taskId: number,
-  taskData: {
-    description: string
-    duration: string
-    time_of_day: string
-    is_exam: boolean
-    activity_template_id?: number | null
-  },
-) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
+export async function updateTask(taskId: number, updates: Partial<Task>) {
+  const supabase = getServerClient()
 
-  const { data, error } = await supabase
-    .from("tasks")
-    .update(taskData)
-    .eq("id", taskId)
-    .eq("user_profile_name", profileName) // Фильтр по профилю
-    .select()
+  const { error } = await supabase.from("tasks").update(updates).eq("id", taskId)
 
   if (error) {
     throw new Error(`Failed to update task: ${error.message}`)
   }
 
-  revalidatePath("/")
   revalidatePath("/schedule")
-  revalidatePath("/exams")
-
-  return data[0]
 }
 
-// Удаление задачи
-export async function deleteTask(profileName: string, taskId: number) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
+export async function updateTotalTasks(profileName: string, increment: number) {
+  const supabase = getServerClient()
 
-  const { error } = await supabase.from("tasks").delete().eq("id", taskId).eq("user_profile_name", profileName) // Фильтр по профилю
-
-  if (error) {
-    throw new Error(`Failed to delete task: ${error.message}`)
-  }
-
-  // Обновляем общее количество задач в статистике
-  await updateTotalTasks(profileName, -1)
-
-  revalidatePath("/")
-  revalidatePath("/schedule")
-  revalidatePath("/exams")
-
-  return { success: true }
-}
-
-// Обновление общего количества задач
-export async function updateTotalTasks(profileName: string, change: number) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
-
-  // Получаем текущую статистику
+  // Get current stats
   const { data: statsData, error: statsError } = await supabase
     .from("user_stats")
-    .select("*")
+    .select("total_tasks")
     .eq("user_profile_name", profileName)
     .limit(1)
 
@@ -192,381 +72,409 @@ export async function updateTotalTasks(profileName: string, change: number) {
     throw new Error(`Failed to get user stats: ${statsError.message}`)
   }
 
-  let stats
-  if (statsData.length === 0) {
-    // Создаем начальную статистику, если ее нет
-    const { data: newStats, error: createError } = await supabase
-      .from("user_stats")
-      .insert({
-        total_tasks: Math.max(0, change),
-        completed_tasks: 0,
-        streak_days: 0,
-        points: 0,
-        level: 1,
-        last_activity_date: new Date().toISOString().split("T")[0],
-        user_profile_name: profileName,
-      })
-      .select()
+  const currentTotalTasks = statsData?.[0]?.total_tasks || 0
 
-    if (createError) {
-      throw new Error(`Failed to create user stats: ${createError.message}`)
-    }
+  // Update total_tasks
+  const { error } = await supabase
+    .from("user_stats")
+    .update({ total_tasks: currentTotalTasks + increment })
+    .eq("user_profile_name", profileName)
 
-    stats = newStats[0]
-  } else {
-    stats = statsData[0]
-
-    // Обновляем total_tasks
-    const { error: updateError } = await supabase
-      .from("user_stats")
-      .update({
-        total_tasks: Math.max(0, stats.total_tasks + change),
-      })
-      .eq("id", stats.id)
-      .eq("user_profile_name", profileName)
-
-    if (updateError) {
-      throw new Error(`Failed to update total tasks: ${updateError.message}`)
-    }
+  if (error) {
+    throw new Error(`Failed to update total tasks: ${error.message}`)
   }
 
-  return { success: true }
+  revalidatePath("/")
+  revalidatePath("/schedule")
 }
 
-// Добавление задачи в список дел
-export async function addTodoItem(profileName: string, formData: FormData) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
+export async function updateTaskScore(taskId: number, score: number) {
+  const supabase = getServerClient()
 
-  const text = formData.get("text") as string
+  const { error } = await supabase.from("tasks").update({ score }).eq("id", taskId)
 
-  if (!text || text.trim() === "") {
-    throw new Error("Todo text cannot be empty")
+  if (error) {
+    throw new Error(`Failed to update task score: ${error.message}`)
   }
 
-  const { data, error } = await supabase
-    .from("todo_items")
-    .insert({ text: text.trim(), is_completed: false, user_profile_name: profileName })
-    .select()
+  revalidatePath("/exams")
+}
+
+export async function toggleTaskCompletion(taskId: number, isCompleted: boolean) {
+  const supabase = getServerClient()
+
+  const { error } = await supabase.from("tasks").update({ is_completed: isCompleted }).eq("id", taskId)
+
+  if (error) {
+    throw new Error(`Failed to toggle task completion: ${error.message}`)
+  }
+
+  revalidatePath("/")
+  revalidatePath("/schedule")
+  revalidatePath("/todos")
+  revalidatePath("/exams")
+}
+
+export async function deleteTask(taskId: number) {
+  const supabase = getServerClient()
+
+  const { error } = await supabase.from("tasks").delete().eq("id", taskId)
+
+  if (error) {
+    throw new Error(`Failed to delete task: ${error.message}`)
+  }
+
+  revalidatePath("/schedule")
+}
+
+export async function addTodoItem(formData: FormData) {
+  "use server"
+
+  const text = formData.get("text") as string
+  const supabase = getServerClient()
+
+  // Get profile from cookies
+  const profileName = getProfileName()
+
+  if (!profileName) {
+    throw new Error("Profile not found")
+  }
+
+  const { error } = await supabase.from("todo_items").insert({
+    text: text,
+    is_completed: false,
+    user_profile_name: profileName,
+  })
 
   if (error) {
     throw new Error(`Failed to add todo item: ${error.message}`)
   }
 
   revalidatePath("/")
-
-  return data[0]
+  revalidatePath("/todos")
 }
 
-// Переключение статуса задачи в списке дел
-export async function toggleTodoCompletion(profileName: string, todoId: number, isCompleted: boolean) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
+export async function toggleTodoCompletion(todoId: number, isCompleted: boolean) {
+  const supabase = getServerClient()
 
-  const { data, error } = await supabase
-    .from("todo_items")
-    .update({ is_completed: isCompleted })
-    .eq("id", todoId)
-    .eq("user_profile_name", profileName) // Фильтр по профилю
-    .select()
+  const { error } = await supabase.from("todo_items").update({ is_completed: isCompleted }).eq("id", todoId)
 
   if (error) {
-    throw new Error(`Failed to update todo item: ${error.message}`)
+    throw new Error(`Failed to toggle todo completion: ${error.message}`)
   }
 
-  // Обновляем статистику пользователя
-  await updateUserStats(profileName, isCompleted)
-
   revalidatePath("/")
-
-  return data[0]
+  revalidatePath("/todos")
 }
 
-// Удаление задачи из списка дел
-export async function deleteTodoItem(profileName: string, todoId: number) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
+export async function deleteTodoItem(todoId: number) {
+  const supabase = getServerClient()
 
-  const { error } = await supabase.from("todo_items").delete().eq("id", todoId).eq("user_profile_name", profileName) // Фильтр по профилю
+  const { error } = await supabase.from("todo_items").delete().eq("id", todoId)
 
   if (error) {
     throw new Error(`Failed to delete todo item: ${error.message}`)
   }
 
-  revalidatePath("/")
-
-  return { success: true }
+  revalidatePath("/todos")
 }
 
-// Обновление статистики пользователя
-async function updateUserStats(profileName: string, taskCompleted: boolean) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
-
-  // Получаем текущую статистику
-  const { data: statsData, error: statsError } = await supabase
-    .from("user_stats")
-    .select("*")
-    .eq("user_profile_name", profileName)
-    .limit(1)
-
-  if (statsError) {
-    throw new Error(`Failed to get user stats: ${statsError.message}`)
-  }
-
-  let stats
-  if (statsData.length === 0) {
-    // Создаем начальную статистику, если ее нет
-    const { data: newStats, error: createError } = await supabase
-      .from("user_stats")
-      .insert({
-        total_tasks: 0,
-        completed_tasks: 0,
-        streak_days: 0,
-        points: 0,
-        level: 1,
-        last_activity_date: new Date().toISOString().split("T")[0],
-        user_profile_name: profileName,
-      })
-      .select()
-
-    if (createError) {
-      throw new Error(`Failed to create user stats: ${createError.message}`)
-    }
-
-    stats = newStats[0]
-  } else {
-    stats = statsData[0]
-  }
-
-  const today = new Date().toISOString().split("T")[0]
-
-  let streakDays = stats.streak_days
-  let points = stats.points
-  let completedTasks = stats.completed_tasks
-
-  if (taskCompleted) {
-    // Увеличиваем количество выполненных задач и очки
-    completedTasks += 1
-    points += 5
-
-    // Обновляем серию дней, если это новый день
-    if (stats.last_activity_date !== today) {
-      const yesterday = new Date()
-      yesterday.setDate(yesterday.getDate() - 1)
-      const yesterdayStr = yesterday.toISOString().split("T")[0]
-
-      if (stats.last_activity_date === yesterdayStr) {
-        // Последовательный день
-        streakDays += 1
-
-        // Бонусные очки за серию
-        if (streakDays % 3 === 0) {
-          points += 15 // Бонус каждые 3 дня
-        }
-      } else {
-        // Серия прервана
-        streakDays = 1
-      }
-    }
-  } else {
-    // Задача снята с выполнения
-    completedTasks = Math.max(0, completedTasks - 1)
-    points = Math.max(0, points - 5)
-  }
-
-  // Рассчитываем уровень (1 уровень на каждые 100 очков)
-  const level = Math.max(1, Math.floor(points / 100) + 1)
-
-  // Обновляем статистику
-  const { error: updateError } = await supabase
-    .from("user_stats")
-    .update({
-      completed_tasks: completedTasks,
-      streak_days: streakDays,
-      points: points,
-      level: level,
-      last_activity_date: today,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", stats.id)
-    .eq("user_profile_name", profileName)
-
-  if (updateError) {
-    throw new Error(`Failed to update user stats: ${updateError.message}`)
-  }
-
-  // Проверяем достижения
-  await checkAndUnlockAchievements(profileName, stats, completedTasks, streakDays)
-
-  return { success: true }
-}
-
-// Проверка и разблокировка достижений
-async function checkAndUnlockAchievements(profileName: string, stats: any, completedTasks: number, streakDays: number) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
-
-  // Получаем все достижения
-  const { data: achievements, error: achievementsError } = await supabase.from("achievements").select("*")
-
-  if (achievementsError) {
-    throw new Error(`Failed to get achievements: ${achievementsError.message}`)
-  }
-
-  // Получаем разблокированные достижения пользователя
-  const { data: userAchievements, error: userAchievementsError } = await supabase
-    .from("user_achievements")
-    .select("achievement_id")
-    .eq("user_profile_name", profileName)
-
-  if (userAchievementsError) {
-    throw new Error(`Failed to get user achievements: ${userAchievementsError.message}`)
-  }
-
-  const unlockedIds = userAchievements.map((ua) => ua.achievement_id)
-
-  // Проверяем новые достижения
-  for (const achievement of achievements) {
-    if (unlockedIds.includes(achievement.id)) continue
-
-    let shouldUnlock = false
-
-    // Логика для разных типов достижений
-    switch (achievement.name) {
-      case "First Task":
-        shouldUnlock = completedTasks >= 1
-        break
-      case "Task Master":
-        shouldUnlock = completedTasks >= 10
-        break
-      case "3-Day Streak":
-        shouldUnlock = streakDays >= 3
-        break
-      case "Week Warrior":
-        shouldUnlock = streakDays >= 7
-        break
-      // Добавьте другие проверки достижений по мере необходимости
-    }
-
-    if (shouldUnlock) {
-      // Разблокируем достижение
-      await supabase.from("user_achievements").insert({
-        achievement_id: achievement.id,
-        user_profile_name: profileName,
-      })
-
-      // Добавляем очки достижения пользователю
-      const cookieStoreInner = cookies()
-      const supabaseInner = getServerClient(cookieStoreInner)
-      await supabaseInner
-        .from("user_stats")
-        .update({
-          points: stats.points + achievement.points,
-        })
-        .eq("id", stats.id)
-        .eq("user_profile_name", profileName)
-    }
-  }
-}
-
-// Создание расписания для профиля
 export async function createScheduleForProfile(profileName: string) {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
+  const supabase = getServerClient()
 
-  // Получаем структуру недель и дней из профиля "Сева"
-  const { data: sevaWeeks } = await supabase
+  // Create weeks
+  const { data: weeks } = await supabase
     .from("weeks")
-    .select("*")
-    .eq("user_profile_name", "Сева")
-    .order("start_date")
+    .insert([
+      {
+        title: "Неделя 1",
+        start_date: "2024-10-28",
+        end_date: "2024-11-03",
+        user_profile_name: profileName,
+      },
+      {
+        title: "Неделя 2",
+        start_date: "2024-11-04",
+        end_date: "2024-11-10",
+        user_profile_name: profileName,
+      },
+      {
+        title: "Неделя 3",
+        start_date: "2024-11-11",
+        end_date: "2024-11-17",
+        user_profile_name: profileName,
+      },
+    ])
+    .select()
 
-  if (!sevaWeeks || sevaWeeks.length === 0) {
-    throw new Error("No template schedule found for profile 'Сева'")
+  if (!weeks) throw new Error("Failed to create weeks")
+
+  // Create days for each week
+  for (const week of weeks) {
+    const days = [
+      {
+        date: "2024-10-28",
+        day_name: "Пн",
+        day_type: "weekday",
+        week_id: week.id,
+        user_profile_name: profileName,
+      },
+      {
+        date: "2024-10-29",
+        day_name: "Вт",
+        day_type: "weekday",
+        week_id: week.id,
+        user_profile_name: profileName,
+      },
+      {
+        date: "2024-10-30",
+        day_name: "Ср",
+        day_type: "training",
+        week_id: week.id,
+        user_profile_name: profileName,
+      },
+      {
+        date: "2024-10-31",
+        day_name: "Чт",
+        day_type: "weekday",
+        week_id: week.id,
+        user_profile_name: profileName,
+      },
+      {
+        date: "2024-11-01",
+        day_name: "Пт",
+        day_type: "training",
+        week_id: week.id,
+        user_profile_name: profileName,
+      },
+      {
+        date: "2024-11-02",
+        day_name: "Сб",
+        day_type: "weekend",
+        week_id: week.id,
+        user_profile_name: profileName,
+      },
+      {
+        date: "2024-11-03",
+        day_name: "Вс",
+        day_type: "weekend",
+        week_id: week.id,
+        user_profile_name: profileName,
+      },
+    ]
+
+    await supabase.from("days").insert(days)
   }
 
-  // Получаем дни тренировок для профиля
-  const { data: profileData } = await supabase
+  revalidatePath("/schedule")
+}
+
+// Добавляем недостающие функции
+
+export async function updateProfileSettings(
+  profileName: string,
+  settings: {
+    training_days: number[]
+    study_goal_weekday?: number | null
+    study_goal_training?: number | null
+    study_goal_weekend?: number | null
+  },
+) {
+  const supabase = getServerClient()
+
+  // Обновляем настройки профиля
+  const { error } = await supabase
     .from("user_profiles")
-    .select("training_days")
+    .update({
+      training_days: settings.training_days,
+      study_goal_weekday: settings.study_goal_weekday,
+      study_goal_training: settings.study_goal_training,
+      study_goal_weekend: settings.study_goal_weekend,
+    })
+    .eq("name", profileName)
+
+  if (error) {
+    throw new Error(`Failed to update profile settings: ${error.message}`)
+  }
+
+  // Обновляем типы дней на основе дней тренировок
+  await updateDayTypesForProfile(profileName, settings.training_days)
+
+  revalidatePath("/")
+  revalidatePath("/schedule")
+  revalidatePath("/report")
+}
+
+async function updateDayTypesForProfile(profileName: string, trainingDays: number[]) {
+  const supabase = getServerClient()
+
+  // Получаем все дни профиля
+  const { data: days, error: daysError } = await supabase
+    .from("days")
+    .select("id, date, day_type")
+    .eq("user_profile_name", profileName)
+
+  if (daysError) {
+    throw new Error(`Failed to get days: ${daysError.message}`)
+  }
+
+  if (!days || days.length === 0) return
+
+  // Обновляем типы дней
+  for (const day of days) {
+    // Пропускаем выходные и экзамены
+    if (day.day_type === "weekend" || day.day_type === "exam") continue
+
+    const dayDate = new Date(day.date)
+    const dayOfWeek = dayDate.getDay() // 0 = воскресенье, 1 = понедельник, ...
+
+    // Определяем, является ли день тренировочным
+    const isTrainingDay = trainingDays.includes(dayOfWeek)
+    const newDayType = isTrainingDay ? "training" : "weekday"
+
+    // Обновляем тип дня, если он изменился
+    if (day.day_type !== newDayType) {
+      await supabase.from("days").update({ day_type: newDayType }).eq("id", day.id)
+    }
+  }
+}
+
+export async function getWeeklyHoursReport(profileName: string, startDateStr: string, endDateStr: string) {
+  const supabase = getServerClient()
+
+  // Получаем все дни в указанном диапазоне
+  const { data: days, error: daysError } = await supabase
+    .from("days")
+    .select("*")
+    .eq("user_profile_name", profileName)
+    .gte("date", startDateStr)
+    .lte("date", endDateStr)
+    .order("date", { ascending: true })
+
+  if (daysError) {
+    throw new Error(`Failed to get days: ${daysError.message}`)
+  }
+
+  if (!days || days.length === 0) return []
+
+  // Получаем настройки профиля для целей
+  const { data: profileData, error: profileError } = await supabase
+    .from("user_profiles")
+    .select("study_goal_weekday, study_goal_training, study_goal_weekend")
     .eq("name", profileName)
     .single()
 
-  const trainingDays = profileData?.training_days || []
+  if (profileError) {
+    throw new Error(`Failed to get profile settings: ${profileError.message}`)
+  }
 
-  // Создаем недели для нового профиля
-  for (const week of sevaWeeks) {
-    // Создаем новую неделю
-    const { data: newWeek } = await supabase
-      .from("weeks")
-      .insert({
-        title: week.title,
-        start_date: week.start_date,
-        end_date: week.end_date,
-        user_profile_name: profileName,
-      })
-      .select()
+  // Получаем задачи для этих дней
+  const { data: tasks, error: tasksError } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("user_profile_name", profileName)
+    .in(
+      "day_id",
+      days.map((day) => day.id),
+    )
 
-    if (!newWeek || newWeek.length === 0) continue
+  if (tasksError) {
+    throw new Error(`Failed to get tasks: ${tasksError.message}`)
+  }
 
-    // Получаем дни для этой недели из профиля "Сева"
-    const { data: sevaDays } = await supabase
-      .from("days")
-      .select("*")
-      .eq("week_id", week.id)
-      .eq("user_profile_name", "Сева")
-      .order("date")
+  // Группируем дни по неделям
+  const weeklyData: Record<string, any> = {}
 
-    if (!sevaDays || sevaDays.length === 0) continue
+  for (const day of days) {
+    const date = new Date(day.date)
+    const weekStart = format(startOfWeek(date, { weekStartsOn: 1 }), "yyyy-MM-dd")
+    const weekEnd = format(endOfWeek(date, { weekStartsOn: 1 }), "yyyy-MM-dd")
+    const weekKey = `${weekStart}_${weekEnd}`
 
-    // Создаем дни для нового профиля
-    for (const day of sevaDays) {
-      // Определяем тип дня
-      let dayType = day.day_type
-
-      // Проверяем, является ли день экзаменом
-      const isExamDay = ["2025-05-27", "2025-05-30", "2025-06-11"].includes(day.date)
-      if (isExamDay) {
-        dayType = "exam"
-      } else {
-        // Проверяем, является ли день тренировкой
-        const dayDate = new Date(day.date)
-        const dayOfWeek = dayDate.getDay() // 0 = Вс, 1 = Пн, ..., 6 = Сб
-        if (trainingDays.includes(dayOfWeek)) {
-          dayType = "training"
-        }
+    if (!weeklyData[weekKey]) {
+      weeklyData[weekKey] = {
+        weekStart,
+        weekEnd,
+        totalDays: 0,
+        totalHours: 0,
+        weekdayHours: 0,
+        trainingHours: 0,
+        weekendHours: 0,
+        examHours: 0,
+        completedTasks: 0,
+        weeklyGoal: 0,
+        days: [],
       }
+    }
 
-      // Создаем новый день
-      await supabase.from("days").insert({
-        week_id: newWeek[0].id,
-        date: day.date,
-        day_name: day.day_name,
-        day_type: dayType,
-        user_profile_name: profileName,
-      })
+    weeklyData[weekKey].totalDays++
+    weeklyData[weekKey].days.push(day)
+
+    // Суммируем часы по типам дней
+    if (day.study_hours) {
+      weeklyData[weekKey].totalHours += day.study_hours
+
+      switch (day.day_type) {
+        case "weekday":
+          weeklyData[weekKey].weekdayHours += day.study_hours
+          break
+        case "training":
+          weeklyData[weekKey].trainingHours += day.study_hours
+          break
+        case "weekend":
+          weeklyData[weekKey].weekendHours += day.study_hours
+          break
+        case "exam":
+          weeklyData[weekKey].examHours += day.study_hours
+          break
+      }
     }
   }
 
-  // Создаем начальную статистику для профиля
-  const { data: statsData } = await supabase
-    .from("user_stats")
-    .select("*")
-    .eq("user_profile_name", profileName)
-    .limit(1)
+  // Подсчитываем выполненные задачи
+  if (tasks) {
+    for (const task of tasks) {
+      if (task.is_completed) {
+        const day = days.find((d) => d.id === task.day_id)
+        if (day) {
+          const date = new Date(day.date)
+          const weekStart = format(startOfWeek(date, { weekStartsOn: 1 }), "yyyy-MM-dd")
+          const weekEnd = format(endOfWeek(date, { weekStartsOn: 1 }), "yyyy-MM-dd")
+          const weekKey = `${weekStart}_${weekEnd}`
 
-  if (!statsData || statsData.length === 0) {
-    await supabase.from("user_stats").insert({
-      total_tasks: 0,
-      completed_tasks: 0,
-      streak_days: 0,
-      points: 0,
-      level: 1,
-      last_activity_date: new Date().toISOString().split("T")[0],
-      user_profile_name: profileName,
-    })
+          if (weeklyData[weekKey]) {
+            weeklyData[weekKey].completedTasks++
+          }
+        }
+      }
+    }
   }
 
-  return { success: true }
+  // Рассчитываем цели для каждой недели
+  for (const weekKey in weeklyData) {
+    const week = weeklyData[weekKey]
+    let weeklyGoal = 0
+
+    // Подсчитываем цель на неделю на основе типов дней
+    for (const day of week.days) {
+      switch (day.day_type) {
+        case "weekday":
+          weeklyGoal += profileData.study_goal_weekday || 0
+          break
+        case "training":
+          weeklyGoal += profileData.study_goal_training || 0
+          break
+        case "weekend":
+          weeklyGoal += profileData.study_goal_weekend || 0
+          break
+      }
+    }
+
+    week.weeklyGoal = weeklyGoal
+  }
+
+  // Преобразуем объект в массив и сортируем по дате начала недели
+  return Object.values(weeklyData).sort((a: any, b: any) => {
+    return new Date(a.weekStart).getTime() - new Date(b.weekStart).getTime()
+  })
 }

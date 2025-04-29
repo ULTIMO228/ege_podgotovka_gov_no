@@ -4,6 +4,7 @@ export type Week = {
   start_date: string
   end_date: string
   created_at: string
+  user_profile_name: string
 }
 
 export type Day = {
@@ -17,6 +18,7 @@ export type Day = {
   usefulness?: number
   study_hours?: number
   created_at: string
+  user_profile_name: string
 }
 
 export type Task = {
@@ -30,6 +32,8 @@ export type Task = {
   score?: number
   is_exam: boolean
   created_at: string
+  user_profile_name: string
+  activity_template_id?: number
 }
 
 export type TodoItem = {
@@ -38,6 +42,7 @@ export type TodoItem = {
   is_completed: boolean
   created_at: string
   user_id: string | null
+  user_profile_name: string
 }
 
 export type UserStats = {
@@ -51,6 +56,7 @@ export type UserStats = {
   level: number
   created_at: string
   updated_at: string
+  user_profile_name: string
 }
 
 export type Achievement = {
@@ -67,6 +73,25 @@ export type UserAchievement = {
   user_id: string | null
   achievement_id: number
   unlocked_at: string
+  user_profile_name: string
 }
 
-export type Database = {}
+// Новые типы
+export type UserProfile = {
+  id: number
+  name: string
+  subjects: string[]
+  training_days: number[] | null
+  study_goal_weekday?: number | null
+  study_goal_training?: number | null
+  study_goal_weekend?: number | null
+  created_at: string
+}
+
+export type ActivityTemplate = {
+  id: number
+  subject_key: string
+  activity_key: string
+  description: string
+  default_duration: number | null
+}

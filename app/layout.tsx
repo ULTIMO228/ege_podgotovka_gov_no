@@ -6,7 +6,6 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Navigation } from "@/components/navigation"
 import { Toaster } from "@/components/ui/toaster"
 import { AuthProvider } from "@/components/auth-provider"
-import { ProfileGoalsChecker } from "@/components/profile-goals-checker"
 
 const inter = Inter({ subsets: ["latin", "cyrillic"] })
 
@@ -33,9 +32,8 @@ export default function RootLayout({
                 <div className="container">&copy; {new Date().getFullYear()} График подготовки к ЕГЭ</div>
               </footer>
             </div>
-            <ProfileGoalsChecker />
-            <Toaster />
           </AuthProvider>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

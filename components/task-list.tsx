@@ -1,108 +1,213 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { Check, Clock, Edit, Trash2 } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { toast } from "@/components/ui/use-toast"
-import { toggleTaskCompletion, updateTaskScore } from "@/app/actions"
-import type { Task } from "@/types/database"
+import { toggleTaskCompletion, deleteTask, updateTotalTasks } from "@/app/actions"
+import { useToast } from "@/components/ui/use-toast"
+import { EditTaskModal } from "@/components/edit-task-modal"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { useProfile } from "@/context/ProfileContext"
 
-export function TaskList({ tasks }: { tasks: Task[] }) {
-  const router = useRouter()
-  const [pendingTasks, setPendingTasks] = useState<number[]>([])
-  const [pendingScores, setPendingScores] = useState<number[]>([])
+interface TaskListProps {
+  tasks: any[]
+  dayId: number
+  isEditing?: boolean
+  onTasksChange?: () => void
+}
 
-  const handleTaskToggle = async (task: Task) => {
+export function TaskList({ tasks, dayId, isEditing = false, onTasksChange }: TaskListProps) {
+  const { toast } = useToast()
+  const { selectedProfile } = useProfile()
+  const [editingTask, setEditingTask] = useState<any | null>(null)
+  const [deletingTaskId, setDeletingTaskId] = useState<number | null>(null)
+
+  if (!tasks || tasks.length === 0) {
+    return <p className="text-sm text-muted-foreground">Нет задач на этот день</p>
+  }
+
+  const handleToggleCompletion = async (taskId: number, isCompleted: boolean) => {
     try {
-      setPendingTasks((prev) => [...prev, task.id])
-
-      await toggleTaskCompletion(task.id, !task.is_completed)
-
-      // Show toast for completed task
-      if (!task.is_completed) {
-        toast({
-          title: "Задача выполнена!",
-          description: "+5 очков",
-        })
-      }
-
-      router.refresh()
-    } catch (error) {
+      await toggleTaskCompletion(taskId, !isCompleted)
+    } catch (error: any) {
       toast({
         title: "Ошибка",
-        description: "Не удалось обновить задачу",
+        description: error.message,
         variant: "destructive",
       })
-    } finally {
-      setPendingTasks((prev) => prev.filter((id) => id !== task.id))
     }
   }
 
-  const handleScoreChange = async (task: Task, score: number) => {
+  const handleDeleteTask = async () => {
+    if (!deletingTaskId || !selectedProfile) return
+
     try {
-      setPendingScores((prev) => [...prev, task.id])
-
-      await updateTaskScore(task.id, score)
-
+      await deleteTask(deletingTaskId)
+      await updateTotalTasks(selectedProfile, -1)
       toast({
-        title: "Баллы обновлены",
-        description: `Результат пробника: ${score} баллов`,
+        title: "Задача удалена",
+        description: "Задача была успешно удалена из расписания",
       })
-
-      router.refresh()
-    } catch (error) {
+      if (onTasksChange) {
+        onTasksChange()
+      }
+    } catch (error: any) {
       toast({
         title: "Ошибка",
-        description: "Не удалось обновить баллы",
+        description: error.message,
         variant: "destructive",
       })
     } finally {
-      setPendingScores((prev) => prev.filter((id) => id !== task.id))
+      setDeletingTaskId(null)
     }
+  }
+
+  // Группировка задач по времени дня
+  const tasksByTimeOfDay: Record<string, any[]> = {
+    morning: [],
+    afternoon: [],
+  }
+
+  tasks.forEach((task) => {
+    if (task.time_of_day in tasksByTimeOfDay) {
+      tasksByTimeOfDay[task.time_of_day].push(task)
+    }
+  })
+
+  const timeOfDayLabels: Record<string, string> = {
+    morning: "Утро",
+    afternoon: "День/Вечер",
   }
 
   return (
-    <ul className="space-y-2">
-      {tasks.map((task) => (
-        <li
-          key={task.id}
-          className={`flex items-start gap-2 p-2 rounded-md ${task.is_completed ? "bg-muted/50" : "hover:bg-muted/30"}`}
-        >
-          <Checkbox
-            id={`task-${task.id}`}
-            checked={task.is_completed}
-            disabled={pendingTasks.includes(task.id)}
-            onCheckedChange={() => handleTaskToggle(task)}
-            className="mt-1"
-          />
-          <div className="flex-1">
-            <label
-              htmlFor={`task-${task.id}`}
-              className={`text-sm cursor-pointer ${task.is_completed ? "line-through text-muted-foreground" : ""}`}
-            >
-              {task.description}
-              {task.duration && <span className="ml-1 text-muted-foreground">– {task.duration}</span>}
-            </label>
+    <div className="space-y-4">
+      {Object.entries(tasksByTimeOfDay).map(
+        ([timeOfDay, tasksForTime]) =>
+          tasksForTime.length > 0 && (
+            <div key={timeOfDay} className="space-y-2">
+              <h4 className="text-sm font-medium text-muted-foreground">{timeOfDayLabels[timeOfDay]}</h4>
+              <ul className="space-y-2">
+                {tasksForTime.map((task) => (
+                  <li
+                    key={task.id}
+                    className={cn(
+                      "flex items-start justify-between p-2 rounded-md",
+                      task.is_completed
+                        ? "bg-green-50 dark:bg-green-950"
+                        : task.is_exam
+                          ? "bg-red-50 dark:bg-red-950"
+                          : "bg-gray-50 dark:bg-gray-900",
+                    )}
+                  >
+                    <div className="flex items-start gap-2">
+                      {!isEditing && (
+                        <Checkbox
+                          checked={task.is_completed}
+                          onCheckedChange={() => handleToggleCompletion(task.id, task.is_completed)}
+                          className="mt-1"
+                        />
+                      )}
+                      <div>
+                        <p
+                          className={cn(
+                            "text-sm font-medium",
+                            task.is_completed && "line-through text-muted-foreground",
+                          )}
+                        >
+                          {task.description}
+                        </p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {task.duration && (
+                            <Badge variant="outline" className="flex items-center gap-1 text-xs">
+                              <Clock className="h-3 w-3" />
+                              {task.duration}
+                            </Badge>
+                          )}
+                          {task.is_exam && (
+                            <Badge variant="destructive" className="text-xs">
+                              Экзамен
+                            </Badge>
+                          )}
+                          {task.is_completed && (
+                            <Badge variant="success" className="flex items-center gap-1 text-xs">
+                              <Check className="h-3 w-3" />
+                              Выполнено
+                            </Badge>
+                          )}
+                          {task.score !== null && task.score !== undefined && (
+                            <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 text-xs">
+                              {task.score} баллов
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {isEditing && (
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingTask(task)}>
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        <AlertDialog
+                          open={deletingTaskId === task.id}
+                          onOpenChange={(open) => {
+                            if (!open) setDeletingTaskId(null)
+                          }}
+                        >
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-destructive"
+                              onClick={() => setDeletingTaskId(task.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Удаление задачи</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Вы уверены, что хотите удалить задачу "{task.description}"? Это действие нельзя
+                                отменить.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Отмена</AlertDialogCancel>
+                              <AlertDialogAction onClick={handleDeleteTask}>Удалить</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ),
+      )}
 
-            {task.is_exam && (
-              <div className="mt-1 flex items-center">
-                <span className="text-xs text-muted-foreground mr-2">Баллы:</span>
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={task.score || ""}
-                  onChange={(e) => handleScoreChange(task, Number.parseInt(e.target.value))}
-                  disabled={pendingScores.includes(task.id)}
-                  className="h-7 w-16 text-xs"
-                  placeholder="0-100"
-                />
-              </div>
-            )}
-          </div>
-        </li>
-      ))}
-    </ul>
+      {editingTask && (
+        <EditTaskModal
+          open={!!editingTask}
+          onOpenChange={() => setEditingTask(null)}
+          dayId={dayId}
+          task={editingTask}
+          onSuccess={onTasksChange}
+        />
+      )}
+    </div>
   )
 }

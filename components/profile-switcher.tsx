@@ -2,34 +2,48 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { useProfileContext } from "@/components/auth-provider"
-import { getBrowserClient } from "@/lib/supabase"
-import { User, Users, Loader2 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "@/components/ui/use-toast"
-import { NewUserProfilePlaceholder } from "@/components/new-user-profile-placeholder"
+import { User, UserPlus, LogOut, Check } from "lucide-react"
+import { getBrowserClient } from "@/lib/supabase"
+import { useProfile } from "@/context/ProfileContext"
+import type { UserProfile } from "@/types/database"
 
 export function ProfileSwitcher() {
-  const { selectedProfile, handleProfileSelect, handleProfileSwitch } = useProfileContext()
+  const { selectedProfile, selectProfile, clearProfile } = useProfile()
   const [isOpen, setIsOpen] = useState(false)
-  const [profiles, setProfiles] = useState<{ name: string }[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [switchingTo, setSwitchingTo] = useState<string | null>(null)
-  const [showNewUserPlaceholder, setShowNewUserPlaceholder] = useState(false)
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false)
+  const [profiles, setProfiles] = useState<UserProfile[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSwitching, setIsSwitching] = useState(false)
 
-  // Загружаем профили при открытии диалога
+  // Загрузка профилей при открытии диалога
   useEffect(() => {
     if (isOpen) {
       const fetchProfiles = async () => {
         setIsLoading(true)
         try {
-          const { data } = await getBrowserClient().from("user_profiles").select("name")
+          const supabase = getBrowserClient()
+          const { data, error } = await supabase.from("user_profiles").select("*").order("name", { ascending: true })
+
+          if (error) {
+            throw error
+          }
+
           setProfiles(data || [])
         } catch (error) {
-          console.error("Error fetching profiles:", error)
+          console.error("Ошибка при загрузке профилей:", error)
           toast({
             title: "Ошибка",
-            description: "Не удалось загрузить профили",
+            description: "Не удалось загрузить список профилей",
             variant: "destructive",
           })
         } finally {
@@ -41,90 +55,136 @@ export function ProfileSwitcher() {
     }
   }, [isOpen])
 
-  // Обработчик смены профиля
-  const handleSwitchProfile = async (profileName: string) => {
-    if (profileName === selectedProfile) return
+  // Обработчик переключения профиля
+  const handleProfileSwitch = async (profileName: string) => {
+    if (profileName === selectedProfile) {
+      setIsOpen(false)
+      return
+    }
 
-    setSwitchingTo(profileName)
-    // Имитация загрузки для демонстрации UI
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    handleProfileSelect(profileName)
-    setSwitchingTo(null)
-    setIsOpen(false)
-    toast({
-      title: "Профиль изменен",
-      description: `Вы переключились на профиль: ${profileName}`,
-    })
+    setIsSwitching(true)
+
+    try {
+      // Имитация задержки для UX
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
+      // Сохраняем выбранный профиль
+      localStorage.setItem("selectedProfile", profileName)
+
+      // Устанавливаем cookie для серверной части
+      document.cookie = `selectedProfile=${profileName}; path=/; max-age=2592000; SameSite=Lax` // 30 дней
+
+      // Обновляем контекст
+      selectProfile(profileName)
+
+      toast({
+        title: "Профиль изменен",
+        description: `Вы переключились на профиль: ${profileName}`,
+      })
+
+      // Перезагружаем страницу для применения профиля
+      window.location.reload()
+    } catch (error) {
+      console.error("Ошибка при переключении профиля:", error)
+      toast({
+        title: "Ошибка",
+        description: "Не удалось переключить профиль",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSwitching(false)
+      setIsOpen(false)
+    }
   }
 
-  // Если показываем заглушку нового профиля
-  if (showNewUserPlaceholder) {
-    return (
-      <Dialog open={true} onOpenChange={() => setShowNewUserPlaceholder(false)}>
-        <DialogContent className="sm:max-w-md">
-          <NewUserProfilePlaceholder onBack={() => setShowNewUserPlaceholder(false)} />
-        </DialogContent>
-      </Dialog>
-    )
+  // Обработчик выхода из системы
+  const handleLogout = () => {
+    // Очищаем данные аутентификации
+    localStorage.removeItem("ege_auth")
+    localStorage.removeItem("selectedProfile")
+
+    // Удаляем cookies
+    document.cookie = "ege_auth=; path=/; max-age=0; SameSite=Lax"
+    document.cookie = "selectedProfile=; path=/; max-age=0; SameSite=Lax"
+
+    // Очищаем контекст
+    clearProfile()
+
+    // Перезагружаем страницу
+    window.location.reload()
   }
 
   return (
     <>
-      <Button variant="ghost" size="icon" onClick={() => setIsOpen(true)} aria-label="Сменить профиль">
-        <User className="h-5 w-5" />
-      </Button>
-
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="icon" className="relative">
+            <User className="h-5 w-5" />
+            <span className="sr-only">Профиль</span>
+          </Button>
+        </DialogTrigger>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Сменить профиль</DialogTitle>
-            <DialogDescription>
-              Вы вошли как: <span className="font-medium">{selectedProfile}</span>
-            </DialogDescription>
+            <DialogTitle>Переключение профиля</DialogTitle>
+            <DialogDescription>Выберите профиль для работы с расписанием</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="py-4">
             {isLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
               </div>
             ) : (
-              <div className="grid gap-2">
-                {profiles
-                  .filter((profile) => profile.name !== selectedProfile)
-                  .map((profile) => (
-                    <Button
-                      key={profile.name}
-                      variant="outline"
-                      className="w-full justify-start text-left h-auto py-3"
-                      onClick={() => handleSwitchProfile(profile.name)}
-                      disabled={switchingTo === profile.name}
-                    >
-                      {switchingTo === profile.name ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <User className="mr-2 h-5 w-5 text-primary" />
-                      )}
-                      <div>
-                        <div className="font-medium">{profile.name}</div>
-                        <div className="text-xs text-muted-foreground">Ученик</div>
-                      </div>
-                    </Button>
-                  ))}
+              <div className="space-y-2">
+                {profiles.map((profile) => (
+                  <Button
+                    key={profile.id}
+                    variant="outline"
+                    className="w-full justify-between"
+                    disabled={isSwitching}
+                    onClick={() => handleProfileSwitch(profile.name)}
+                  >
+                    <span>{profile.name}</span>
+                    {selectedProfile === profile.name && <Check className="h-4 w-4 text-primary" />}
+                  </Button>
+                ))}
 
-                <Button
-                  variant="secondary"
-                  className="w-full mt-2"
-                  onClick={() => {
-                    setIsOpen(false)
-                    setShowNewUserPlaceholder(true)
-                  }}
-                >
-                  <Users className="mr-2 h-5 w-5" />
+                <Button variant="ghost" className="w-full justify-start text-left mt-4" disabled={isSwitching}>
+                  <UserPlus className="mr-2 h-4 w-4" />
                   Новый ученик
                 </Button>
               </div>
             )}
+          </div>
+
+          <div className="flex justify-between">
+            <Button variant="outline" onClick={() => setIsOpen(false)}>
+              Отмена
+            </Button>
+            <Button variant="destructive" className="gap-2" onClick={() => setIsLogoutDialogOpen(true)}>
+              <LogOut className="h-4 w-4" />
+              Выйти
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Диалог подтверждения выхода */}
+      <Dialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Подтверждение выхода</DialogTitle>
+            <DialogDescription>Вы уверены, что хотите выйти из системы?</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setIsLogoutDialogOpen(false)}>
+              Отмена
+            </Button>
+            <Button variant="destructive" onClick={handleLogout}>
+              Выйти
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

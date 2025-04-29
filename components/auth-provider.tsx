@@ -1,155 +1,157 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import type React from "react"
+
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { ProfileProvider } from "@/context/ProfileContext"
 import { PasswordLogin } from "@/components/password-login"
 import { ProfileSelector } from "@/components/profile-selector"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AdminPage } from "@/components/admin-page"
+import { ProfileSettingsModal } from "@/components/profile-settings-modal"
+import { getBrowserClient } from "@/lib/supabase"
 
-// Тип для статуса аутентификации
-type AuthStatus = "none" | "user" | "admin"
+// Константы
+const AUTH_COOKIE_NAME = "ege_auth"
+const PROFILE_COOKIE_NAME = "selectedProfile"
+const AUTH_STORAGE_KEY = "ege_auth"
+const PROFILE_STORAGE_KEY = "selectedProfile"
+const SETTINGS_SHOWN_KEY = "settings_shown"
 
-// Создаем контекст для доступа к профилю из любого компонента
-interface ProfileContextType {
-  selectedProfile: string | null
-  handleProfileSwitch: () => void
-  handleProfileSelect: (profileName: string) => void
-}
-
-const ProfileContext = createContext<ProfileContextType | undefined>(undefined)
-
-// Хук для использования контекста профиля
-export function useProfileContext() {
-  const context = useContext(ProfileContext)
-  if (context === undefined) {
-    throw new Error("useProfileContext must be used within a ProfileProvider")
-  }
-  return context
-}
-
-interface AuthProviderProps {
-  children: ReactNode
-}
-
-export function AuthProvider({ children }: AuthProviderProps) {
-  const [authStatus, setAuthStatus] = useState<AuthStatus>("none")
-  const [selectedProfile, setSelectedProfile] = useState<string | null>(null)
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [selectedProfile, setSelectedProfile] = useState<string | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const router = useRouter()
 
-  // Загружаем состояние из localStorage при монтировании
+  // Проверка аутентификации при загрузке
   useEffect(() => {
-    const storedAuthStatus = localStorage.getItem("authStatus") as AuthStatus
-    const storedProfile = localStorage.getItem("selectedProfile")
+    const checkAuth = () => {
+      const authStatus = localStorage.getItem(AUTH_STORAGE_KEY)
+      const profileName = localStorage.getItem(PROFILE_STORAGE_KEY)
 
-    if (storedAuthStatus === "user" || storedAuthStatus === "admin") {
-      setAuthStatus(storedAuthStatus)
-    } else {
-      setAuthStatus("none") // Убедимся, что статус сброшен, если в localStorage мусор
+      if (authStatus === "true") {
+        setIsAuthenticated(true)
+        if (profileName) {
+          setSelectedProfile(profileName)
+        }
+      }
+
+      setIsLoading(false)
     }
 
-    if (storedProfile) {
-      setSelectedProfile(storedProfile)
-      // Устанавливаем cookie для доступа к профилю в Server Components
-      document.cookie = `selectedProfile=${storedProfile}; path=/; max-age=2592000` // 30 дней
-    }
-
-    setIsLoading(false)
+    checkAuth()
   }, [])
 
-  // Обработчик успешного входа для обычного пользователя
-  const handleUserLoginSuccess = () => {
-    setAuthStatus("user")
-    localStorage.setItem("authStatus", "user")
-    // Профиль еще не выбран, selectedProfile остается null
-  }
+  // Проверка необходимости показа настроек профиля
+  useEffect(() => {
+    const checkProfileSettings = async () => {
+      if (!selectedProfile) return
 
-  // Обработчик успешного входа для администратора
-  const handleAdminLoginSuccess = () => {
-    setAuthStatus("admin")
-    localStorage.setItem("authStatus", "admin")
-    setSelectedProfile(null) // У админа нет "выбранного" профиля ученика по умолчанию
-    localStorage.removeItem("selectedProfile")
-    document.cookie = "selectedProfile=; path=/; max-age=0" // Очищаем cookie
+      try {
+        // Проверяем, были ли уже показаны настройки для этого профиля
+        const settingsShownKey = `${SETTINGS_SHOWN_KEY}_${selectedProfile}`
+        const settingsShown = localStorage.getItem(settingsShownKey)
+
+        if (settingsShown === "true") return
+
+        // Проверяем, заполнены ли цели обучения
+        const supabase = getBrowserClient()
+        const { data, error } = await supabase
+          .from("user_profiles")
+          .select("study_goal_weekday, study_goal_training, study_goal_weekend")
+          .eq("name", selectedProfile)
+          .single()
+
+        if (error) throw error
+
+        // Если хотя бы одна цель не заполнена, показываем настройки
+        if (data.study_goal_weekday === null || data.study_goal_training === null || data.study_goal_weekend === null) {
+          setShowSettings(true)
+        }
+
+        // Отмечаем, что настройки были показаны
+        localStorage.setItem(settingsShownKey, "true")
+      } catch (error) {
+        console.error("Error checking profile settings:", error)
+      }
+    }
+
+    checkProfileSettings()
+  }, [selectedProfile])
+
+  // Обработчик успешной аутентификации
+  const handleLoginSuccess = () => {
+    localStorage.setItem(AUTH_STORAGE_KEY, "true")
+    setIsAuthenticated(true)
+
+    // Устанавливаем cookie для серверной части
+    document.cookie = `${AUTH_COOKIE_NAME}=true; path=/; max-age=2592000; SameSite=Lax` // 30 дней
   }
 
   // Обработчик выбора профиля
   const handleProfileSelect = (profileName: string) => {
+    setIsLoading(true)
+
+    // Сохраняем выбранный профиль
+    localStorage.setItem(PROFILE_STORAGE_KEY, profileName)
     setSelectedProfile(profileName)
-    localStorage.setItem("selectedProfile", profileName)
-    // Устанавливаем cookie для доступа к профилю в Server Components
-    document.cookie = `selectedProfile=${profileName}; path=/; max-age=2592000` // 30 дней
+
+    // Устанавливаем cookie для серверной части
+    document.cookie = `${PROFILE_COOKIE_NAME}=${profileName}; path=/; max-age=2592000; SameSite=Lax` // 30 дней
+
+    // Перезагружаем страницу для применения профиля
+    router.refresh()
+
+    setIsLoading(false)
   }
 
   // Обработчик смены профиля
   const handleProfileSwitch = () => {
+    setIsLoading(true)
+
+    // Очищаем выбранный профиль
+    localStorage.removeItem(PROFILE_STORAGE_KEY)
     setSelectedProfile(null)
-    localStorage.removeItem("selectedProfile")
+
     // Удаляем cookie
-    document.cookie = "selectedProfile=; path=/; max-age=0"
+    document.cookie = `${PROFILE_COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`
+
+    // Перезагружаем страницу
+    router.refresh()
+
+    setIsLoading(false)
   }
 
-  // Обработчик выхода из системы
-  const handleLogout = () => {
-    setAuthStatus("none")
-    setSelectedProfile(null)
-    localStorage.removeItem("authStatus")
-    localStorage.removeItem("selectedProfile")
-    // Удаляем cookie
-    document.cookie = "selectedProfile=; path=/; max-age=0"
-  }
-
-  // Обработчик перехода к выбору профиля из админ-панели
-  const handleNavigateToProfiles = () => {
-    setAuthStatus("user")
-    localStorage.setItem("authStatus", "user")
-  }
-
-  // Показываем загрузчик, пока проверяем localStorage
+  // Отображаем загрузчик
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-full max-w-md p-8 space-y-4">
-          <Skeleton className="h-8 w-full" />
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="w-full max-w-md space-y-4 p-6">
+          <Skeleton className="h-8 w-3/4 mx-auto" />
           <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-10 w-full" />
         </div>
       </div>
     )
   }
 
-  // Если пользователь не аутентифицирован, показываем форму входа
-  if (authStatus === "none") {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <PasswordLogin onUserLoginSuccess={handleUserLoginSuccess} onAdminLoginSuccess={handleAdminLoginSuccess} />
-      </div>
-    )
+  // Отображаем форму входа, если пользователь не аутентифицирован
+  if (!isAuthenticated) {
+    return <PasswordLogin onLoginSuccess={handleLoginSuccess} />
   }
 
-  // Если это администратор, показываем страницу администратора
-  if (authStatus === "admin") {
-    return <AdminPage onNavigateToProfiles={handleNavigateToProfiles} />
-  }
-
-  // Если пользователь аутентифицирован, но профиль не выбран, показываем выбор профиля
+  // Отображаем выбор профиля, если профиль не выбран
   if (!selectedProfile) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <ProfileSelector onProfileSelect={handleProfileSelect} />
-      </div>
-    )
+    return <ProfileSelector onProfileSelect={handleProfileSelect} />
   }
 
-  // Если пользователь аутентифицирован и профиль выбран, показываем основное приложение
+  // Отображаем основное содержимое, если пользователь аутентифицирован и профиль выбран
   return (
-    <ProfileContext.Provider
-      value={{
-        selectedProfile,
-        handleProfileSwitch,
-        handleProfileSelect,
-      }}
-    >
+    <ProfileProvider>
       {children}
-    </ProfileContext.Provider>
+      <ProfileSettingsModal open={showSettings} onOpenChange={setShowSettings} />
+    </ProfileProvider>
   )
 }

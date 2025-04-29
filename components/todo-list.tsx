@@ -11,10 +11,12 @@ import { Trash2 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { addTodoItem, toggleTodoCompletion, deleteTodoItem } from "@/app/actions"
 import { getBrowserClient } from "@/lib/supabase"
+import { useProfile } from "@/context/ProfileContext"
 import type { TodoItem } from "@/types/database"
 
 export function TodoList() {
   const router = useRouter()
+  const { selectedProfile } = useProfile()
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [loading, setLoading] = useState(true)
   const [pendingTodos, setPendingTodos] = useState<number[]>([])
@@ -24,10 +26,17 @@ export function TodoList() {
   // Load todos on component mount
   useEffect(() => {
     const fetchTodos = async () => {
+      if (!selectedProfile) {
+        setTodos([])
+        setLoading(false)
+        return
+      }
+
       try {
         const { data } = await getBrowserClient()
           .from("todo_items")
           .select("*")
+          .eq("user_profile_name", selectedProfile)
           .order("created_at", { ascending: false })
 
         setTodos(data || [])
@@ -45,28 +54,40 @@ export function TodoList() {
     fetchTodos()
 
     // Set up real-time subscription
-    const subscription = getBrowserClient()
-      .channel("todo_changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "todo_items",
-        },
-        (payload) => {
-          fetchTodos()
-        },
-      )
-      .subscribe()
+    if (selectedProfile) {
+      const subscription = getBrowserClient()
+        .channel("todo_changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "todo_items",
+            filter: `user_profile_name=eq.${selectedProfile}`,
+          },
+          (payload) => {
+            fetchTodos()
+          },
+        )
+        .subscribe()
 
-    return () => {
-      subscription.unsubscribe()
+      return () => {
+        subscription.unsubscribe()
+      }
     }
-  }, [])
+  }, [selectedProfile])
 
   const handleAddTodo = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!selectedProfile) {
+      toast({
+        title: "Ошибка",
+        description: "Профиль не выбран",
+        variant: "destructive",
+      })
+      return
+    }
 
     if (!newTodoText.trim()) return
 
@@ -79,7 +100,11 @@ export function TodoList() {
       await addTodoItem(formData)
 
       // Обновляем локальное состояние
-      const { data } = await getBrowserClient().from("todo_items").select("*").order("created_at", { ascending: false })
+      const { data } = await getBrowserClient()
+        .from("todo_items")
+        .select("*")
+        .eq("user_profile_name", selectedProfile)
+        .order("created_at", { ascending: false })
 
       setTodos(data || [])
       setNewTodoText("")
@@ -100,6 +125,15 @@ export function TodoList() {
   }
 
   const handleToggleTodo = async (todo: TodoItem) => {
+    if (!selectedProfile) {
+      toast({
+        title: "Ошибка",
+        description: "Профиль не выбран",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       setPendingTodos((prev) => [...prev, todo.id])
 
@@ -127,6 +161,15 @@ export function TodoList() {
   }
 
   const handleDeleteTodo = async (id: number) => {
+    if (!selectedProfile) {
+      toast({
+        title: "Ошибка",
+        description: "Профиль не выбран",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       setPendingTodos((prev) => [...prev, id])
 
@@ -148,6 +191,12 @@ export function TodoList() {
     } finally {
       setPendingTodos((prev) => prev.filter((todoId) => todoId !== id))
     }
+  }
+
+  if (!selectedProfile) {
+    return (
+      <div className="text-center py-4 text-muted-foreground">Пожалуйста, выберите профиль для управления задачами</div>
+    )
   }
 
   if (loading) {

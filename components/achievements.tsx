@@ -1,16 +1,32 @@
-import { cookies } from "next/headers"
 import { getServerClient } from "@/lib/supabase"
+import { getProfileFromCookies } from "@/lib/profile"
 import { Award, Check, Calendar, Star, Trophy, Zap } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
 export async function Achievements() {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
+  const supabase = getServerClient()
+  const profileName = getProfileFromCookies()
+
+  // Если профиль не выбран, показываем сообщение
+  if (!profileName) {
+    return (
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Профиль не выбран</AlertTitle>
+        <AlertDescription>Пожалуйста, выберите профиль для просмотра достижений.</AlertDescription>
+      </Alert>
+    )
+  }
 
   // Get all achievements
   let { data: achievements } = await supabase.from("achievements").select("*")
 
-  // Get user's unlocked achievements
-  const { data: userAchievements } = await supabase.from("user_achievements").select("achievement_id, unlocked_at")
+  // Get user's unlocked achievements с учетом профиля
+  const { data: userAchievements } = await supabase
+    .from("user_achievements")
+    .select("achievement_id, unlocked_at")
+    .eq("user_profile_name", profileName)
 
   if (!achievements || achievements.length === 0) {
     // Create default achievements if none exist

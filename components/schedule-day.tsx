@@ -1,245 +1,224 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { useState, useEffect } from "react"
+import { format } from "date-fns"
+import { ru } from "date-fns/locale"
+import { getBrowserClient } from "@/lib/supabase"
 import { TaskList } from "@/components/task-list"
-import { Textarea } from "@/components/ui/textarea"
-import { Slider } from "@/components/ui/slider"
-import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
-import { toast } from "@/components/ui/use-toast"
-import { updateDayInfo } from "@/app/actions"
-import type { Day, Task } from "@/types/database"
+import { PlusCircle, Edit, Calendar, Target } from "lucide-react"
+import { EditDayModal } from "@/components/edit-day-modal"
+import { EditTaskModal } from "@/components/edit-task-modal"
+import { useProfile } from "@/context/ProfileContext"
 
 interface ScheduleDayProps {
-  day: Day
-  tasks: Task[]
+  day: {
+    id: number
+    date: string
+    day_name: string
+    day_type: "weekend" | "weekday" | "training" | "exam"
+    comment?: string
+    efficiency?: number
+    usefulness?: number
+    study_hours?: number
+  }
+  isEditing?: boolean
 }
 
-export function ScheduleDay({ day, tasks }: ScheduleDayProps) {
-  const [comment, setComment] = useState(day.comment || "")
-  const [efficiency, setEfficiency] = useState(day.efficiency || 0)
-  const [usefulness, setUsefulness] = useState(day.usefulness || 0)
-  const [studyHours, setStudyHours] = useState(day.study_hours?.toString() || "")
-  const [isEditing, setIsEditing] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
+export function ScheduleDay({ day, isEditing = false }: ScheduleDayProps) {
+  const { selectedProfile } = useProfile()
+  const [tasks, setTasks] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [editDayOpen, setEditDayOpen] = useState(false)
+  const [addTaskOpen, setAddTaskOpen] = useState(false)
+  const [profileSettings, setProfileSettings] = useState<any>(null)
+  const [loadingSettings, setLoadingSettings] = useState(true)
 
-  // Group tasks by time of day
-  const morningTasks = tasks.filter((task) => task.time_of_day === "morning") || []
-  const afternoonTasks = tasks.filter((task) => task.time_of_day === "afternoon") || []
-
-  // Format date
-  const date = new Date(day.date)
-  const formattedDate = `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1)
-    .toString()
-    .padStart(2, "0")} ${day.day_name}`
-
-  // Check if this is today
-  const isToday = day.date === new Date().toISOString().split("T")[0]
-
-  // Get badge variant based on day type
-  const getBadgeVariant = (type: string) => {
-    switch (type) {
-      case "weekend":
-        return "secondary"
-      case "weekday":
-        return "default"
-      case "training":
-        return "warning"
-      case "exam":
-        return "destructive"
-      default:
-        return "outline"
-    }
+  const dayTypeLabels: Record<string, string> = {
+    weekend: "Выходной",
+    weekday: "Будний день",
+    training: "Тренировка",
+    exam: "Экзамен",
   }
 
-  // Get day type text
-  const getDayTypeText = (type: string) => {
-    switch (type) {
-      case "weekend":
-        return "Выходной"
-      case "weekday":
-        return "Будний"
-      case "training":
-        return "Тренировка"
-      case "exam":
-        return "Экзамен"
-      default:
-        return type
-    }
+  const dayTypeColors: Record<string, string> = {
+    weekend: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+    weekday: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+    training: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+    exam: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
   }
 
-  const handleSave = async () => {
-    try {
-      setIsSaving(true)
-
-      const updates = {
-        comment,
-        efficiency,
-        usefulness,
-        study_hours: studyHours ? Number.parseFloat(studyHours) : null,
+  useEffect(() => {
+    async function fetchTasks() {
+      if (!selectedProfile) {
+        setLoading(false)
+        return
       }
 
-      await updateDayInfo(day.id, updates)
+      try {
+        setLoading(true)
+        const supabase = getBrowserClient()
 
-      setIsEditing(false)
-      toast({
-        title: "Сохранено",
-        description: "Информация о дне успешно обновлена",
-      })
-    } catch (error) {
-      toast({
-        title: "Ошибка",
-        description: "Не удалось сохранить информацию",
-        variant: "destructive",
-      })
+        const { data, error } = await supabase
+          .from("tasks")
+          .select("*")
+          .eq("day_id", day.id)
+          .eq("user_profile_name", selectedProfile)
+          .order("time_of_day", { ascending: true })
+
+        if (error) {
+          throw error
+        }
+
+        setTasks(data || [])
+      } catch (err: any) {
+        console.error("Error fetching tasks:", err)
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchTasks()
+  }, [day.id, selectedProfile])
+
+  // Загрузка настроек профиля для отображения целей
+  useEffect(() => {
+    async function fetchProfileSettings() {
+      if (!selectedProfile) {
+        setLoadingSettings(false)
+        return
+      }
+
+      try {
+        setLoadingSettings(true)
+        const supabase = getBrowserClient()
+
+        const { data, error } = await supabase
+          .from("user_profiles")
+          .select("study_goal_weekday, study_goal_training, study_goal_weekend")
+          .eq("name", selectedProfile)
+          .single()
+
+        if (error) {
+          throw error
+        }
+
+        setProfileSettings(data)
+      } catch (err: any) {
+        console.error("Error fetching profile settings:", err)
+      } finally {
+        setLoadingSettings(false)
+      }
+    }
+
+    fetchProfileSettings()
+  }, [selectedProfile])
+
+  const refreshTasks = async () => {
+    if (!selectedProfile) return
+
+    try {
+      setLoading(true)
+      const supabase = getBrowserClient()
+
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("*")
+        .eq("day_id", day.id)
+        .eq("user_profile_name", selectedProfile)
+        .order("time_of_day", { ascending: true })
+
+      if (error) {
+        throw error
+      }
+
+      setTasks(data || [])
+    } catch (err: any) {
+      console.error("Error refreshing tasks:", err)
     } finally {
-      setIsSaving(false)
+      setLoading(false)
     }
   }
 
+  const formattedDate = format(new Date(day.date), "d MMMM yyyy", { locale: ru })
+
+  // Определение цели в зависимости от типа дня
+  const getStudyGoal = () => {
+    if (!profileSettings) return null
+
+    switch (day.day_type) {
+      case "weekday":
+        return profileSettings.study_goal_weekday
+      case "training":
+        return profileSettings.study_goal_training
+      case "weekend":
+        return profileSettings.study_goal_weekend
+      case "exam":
+        return null // Для экзаменов нет цели
+      default:
+        return null
+    }
+  }
+
+  const studyGoal = getStudyGoal()
+
   return (
-    <Card className={isToday ? "border-primary" : ""}>
-      <CardHeader className="pb-2 flex flex-row justify-between items-center">
-        <div className="flex items-center gap-2">
-          <span className="font-bold">{formattedDate}</span>
-          {isToday && <Badge variant="outline">Сегодня</Badge>}
-        </div>
-        <Badge variant={getBadgeVariant(day.day_type)}>{getDayTypeText(day.day_type)}</Badge>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <h3 className="text-sm font-medium mb-2">Утро</h3>
-            {morningTasks.length > 0 ? (
-              <TaskList tasks={morningTasks} />
-            ) : (
-              <p className="text-sm text-muted-foreground">Нет задач</p>
-            )}
-          </div>
-          <div>
-            <h3 className="text-sm font-medium mb-2">Днём</h3>
-            {afternoonTasks.length > 0 ? (
-              <TaskList tasks={afternoonTasks} />
-            ) : (
-              <p className="text-sm text-muted-foreground">Нет задач</p>
-            )}
-          </div>
-        </div>
-
-        {!isEditing ? (
-          <div className="mt-4 space-y-3">
-            {(day.comment || day.efficiency || day.usefulness || day.study_hours) && (
-              <>
-                {day.comment && (
-                  <div>
-                    <h4 className="text-sm font-medium mb-1">Комментарий:</h4>
-                    <p className="text-sm bg-muted/50 p-2 rounded">{day.comment}</p>
-                  </div>
+    <>
+      <Card className="h-full flex flex-col">
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-start">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                {day.day_name}, {formattedDate}
+                {isEditing && (
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditDayOpen(true)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
                 )}
-
-                <div className="grid grid-cols-3 gap-2">
-                  {day.efficiency !== null && day.efficiency !== undefined && (
-                    <div>
-                      <h4 className="text-sm font-medium mb-1">Эффективность:</h4>
-                      <p className="text-sm">{day.efficiency}%</p>
-                    </div>
-                  )}
-
-                  {day.usefulness !== null && day.usefulness !== undefined && (
-                    <div>
-                      <h4 className="text-sm font-medium mb-1">Польза:</h4>
-                      <p className="text-sm">{day.usefulness}%</p>
-                    </div>
-                  )}
-
-                  {day.study_hours && (
-                    <div>
-                      <h4 className="text-sm font-medium mb-1">Часов занятий:</h4>
-                      <p className="text-sm">{day.study_hours}</p>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-              {day.comment || day.efficiency || day.usefulness || day.study_hours
-                ? "Редактировать"
-                : "Добавить информацию о дне"}
+              </CardTitle>
+              <div className="flex gap-2 mt-1">
+                <Badge className={dayTypeColors[day.day_type]}>{dayTypeLabels[day.day_type]}</Badge>
+                {day.study_hours !== null && day.study_hours !== undefined && (
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    {day.study_hours} ч
+                    {studyGoal !== null && (
+                      <span className="ml-1 text-xs">
+                        / <Target className="inline h-3 w-3" /> {studyGoal} ч
+                      </span>
+                    )}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+          {day.comment && <p className="text-sm text-muted-foreground mt-2">{day.comment}</p>}
+        </CardHeader>
+        <CardContent className="flex-grow">
+          {loading ? (
+            <Skeleton className="h-[100px] w-full" />
+          ) : (
+            <TaskList tasks={tasks} dayId={day.id} isEditing={isEditing} onTasksChange={refreshTasks} />
+          )}
+        </CardContent>
+        {isEditing && (
+          <CardFooter className="pt-0">
+            <Button variant="outline" size="sm" className="w-full" onClick={() => setAddTaskOpen(true)}>
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Добавить задачу
             </Button>
-          </div>
-        ) : (
-          <div className="mt-4 space-y-3">
-            <div>
-              <label htmlFor={`comment-${day.id}`} className="text-sm font-medium block mb-1">
-                Комментарий:
-              </label>
-              <Textarea
-                id={`comment-${day.id}`}
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Ваш комментарий о дне..."
-                className="resize-none"
-              />
-            </div>
-
-            <div>
-              <label htmlFor={`efficiency-${day.id}`} className="text-sm font-medium block mb-1">
-                Эффективность: {efficiency}%
-              </label>
-              <Slider
-                id={`efficiency-${day.id}`}
-                value={[efficiency]}
-                min={0}
-                max={100}
-                step={5}
-                onValueChange={(value) => setEfficiency(value[0])}
-              />
-            </div>
-
-            <div>
-              <label htmlFor={`usefulness-${day.id}`} className="text-sm font-medium block mb-1">
-                Польза: {usefulness}%
-              </label>
-              <Slider
-                id={`usefulness-${day.id}`}
-                value={[usefulness]}
-                min={0}
-                max={100}
-                step={5}
-                onValueChange={(value) => setUsefulness(value[0])}
-              />
-            </div>
-
-            <div>
-              <label htmlFor={`study-hours-${day.id}`} className="text-sm font-medium block mb-1">
-                Часов занятий:
-              </label>
-              <Input
-                id={`study-hours-${day.id}`}
-                type="number"
-                min="0"
-                max="24"
-                step="0.5"
-                value={studyHours}
-                onChange={(e) => setStudyHours(e.target.value)}
-                placeholder="Количество часов"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <Button onClick={handleSave} disabled={isSaving}>
-                {isSaving ? "Сохранение..." : "Сохранить"}
-              </Button>
-              <Button variant="outline" onClick={() => setIsEditing(false)}>
-                Отмена
-              </Button>
-            </div>
-          </div>
+          </CardFooter>
         )}
-      </CardContent>
-    </Card>
+      </Card>
+
+      <EditDayModal open={editDayOpen} onOpenChange={setEditDayOpen} day={day} />
+
+      <EditTaskModal open={addTaskOpen} onOpenChange={setAddTaskOpen} dayId={day.id} onSuccess={refreshTasks} />
+    </>
   )
 }

@@ -1,12 +1,25 @@
-import { cookies } from "next/headers"
 import { getServerClient } from "@/lib/supabase"
+import { getProfileFromCookies } from "@/lib/profile"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TaskList } from "@/components/task-list"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
 export async function UpcomingTasks() {
-  const cookieStore = cookies()
-  const supabase = getServerClient(cookieStore)
+  const supabase = getServerClient()
+  const profileName = getProfileFromCookies()
+
+  // Если профиль не выбран, показываем сообщение
+  if (!profileName) {
+    return (
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Профиль не выбран</AlertTitle>
+        <AlertDescription>Пожалуйста, выберите профиль для просмотра предстоящих задач.</AlertDescription>
+      </Alert>
+    )
+  }
 
   // Get today's date
   const today = new Date()
@@ -17,10 +30,11 @@ export async function UpcomingTasks() {
   nextWeek.setDate(nextWeek.getDate() + 7)
   const nextWeekStr = nextWeek.toISOString().split("T")[0]
 
-  // Get days in the next 7 days
+  // Get days in the next 7 days с учетом профиля
   const { data: days } = await supabase
     .from("days")
     .select("*")
+    .eq("user_profile_name", profileName)
     .gte("date", todayStr)
     .lte("date", nextWeekStr)
     .order("date", { ascending: true })
@@ -29,10 +43,11 @@ export async function UpcomingTasks() {
     return <div className="text-center py-4 text-muted-foreground">Нет предстоящих задач на ближайшую неделю</div>
   }
 
-  // Get tasks for these days
+  // Get tasks for these days с учетом профиля
   const { data: tasks } = await supabase
     .from("tasks")
     .select("*, day:day_id(*)")
+    .eq("user_profile_name", profileName)
     .in(
       "day_id",
       days.map((day) => day.id),
